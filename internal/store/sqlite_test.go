@@ -57,14 +57,18 @@ func TestSQLiteRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []Debt{
-		{"A", "B", "EUR", 500},
-		{"A", "B", "PLN", 2000},
-		{"A", "C", "PLN", 100},
+		{Creditor: "A", Debtor: "B", Currency: "EUR", AmountMinor: 500},
+		{Creditor: "A", Debtor: "B", Currency: "PLN", AmountMinor: 2000},
+		{Creditor: "A", Debtor: "C", Currency: "PLN", AmountMinor: 100},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 	for i := range got {
+		if got[i].InsertedAt == 0 {
+			t.Errorf("row %d: InsertedAt was not set", i)
+		}
+		got[i].InsertedAt = 0 // ignore for the structural comparison below
 		if got[i] != want[i] {
 			t.Errorf("row %d: got %+v, want %+v", i, got[i], want[i])
 		}
@@ -76,14 +80,15 @@ func TestSQLiteRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantBDebt := []Debt{
-		{"A", "B", "EUR", 500},
-		{"A", "B", "PLN", 2000},
-		{"X", "B", "PLN", 9999},
+		{Creditor: "A", Debtor: "B", Currency: "EUR", AmountMinor: 500},
+		{Creditor: "A", Debtor: "B", Currency: "PLN", AmountMinor: 2000},
+		{Creditor: "X", Debtor: "B", Currency: "PLN", AmountMinor: 9999},
 	}
 	if len(bDebt) != len(wantBDebt) {
 		t.Fatalf("ListByDebtor B: got %v, want %v", bDebt, wantBDebt)
 	}
 	for i := range bDebt {
+		bDebt[i].InsertedAt = 0
 		if bDebt[i] != wantBDebt[i] {
 			t.Errorf("debtor row %d: got %+v, want %+v", i, bDebt[i], wantBDebt[i])
 		}
@@ -125,13 +130,17 @@ func TestSQLitePaymentMethods(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []PaymentMethod{
-		{"U1", "bank", "PL61 1090 0000"},
-		{"U1", "blik", "555 555 555"},
+		{UserID: "U1", Method: "bank", Value: "PL61 1090 0000"},
+		{UserID: "U1", Method: "blik", Value: "555 555 555"},
 	}
 	if len(pms) != len(want) {
 		t.Fatalf("got %v, want %v", pms, want)
 	}
 	for i := range pms {
+		if pms[i].InsertedAt == 0 {
+			t.Errorf("row %d: InsertedAt was not set", i)
+		}
+		pms[i].InsertedAt = 0
 		if pms[i] != want[i] {
 			t.Errorf("row %d: got %+v, want %+v", i, pms[i], want[i])
 		}

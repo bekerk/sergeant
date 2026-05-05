@@ -102,6 +102,29 @@ func TestLedger(t *testing.T) {
 		}
 	})
 
+	t.Run("status output includes since-phrase per amount", func(t *testing.T) {
+		l := newLedger(t)
+		add(t, l, "A", "B", 1, 2000, "PLN")
+		add(t, l, "A", "B", 1, 500, "EUR")
+		r, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindStatusFor, Target: "B"})
+
+		for _, want := range []string{"20.00 PLN (just now)", "5.00 EUR (just now)"} {
+			if !strings.Contains(r.Text, want) {
+				t.Errorf("status text %q missing %q", r.Text, want)
+			}
+		}
+	})
+
+	t.Run("status output includes since-phrase in polish", func(t *testing.T) {
+		l := newLedgerLocale(t, "pl")
+		add(t, l, "A", "B", 1, 2000, "PLN")
+		r, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindStatusAll})
+
+		if !strings.Contains(r.Text, "20.00 PLN (przed chwilą)") {
+			t.Errorf("polish status text missing since-phrase: %q", r.Text)
+		}
+	})
+
 	t.Run("polish locale", func(t *testing.T) {
 		l := newLedgerLocale(t, "pl")
 		r := add(t, l, "A", "B", 1, 2000, "PLN")

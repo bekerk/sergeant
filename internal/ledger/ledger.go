@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"sergeant/internal/i18n"
 	"sergeant/internal/parser"
@@ -70,7 +71,7 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 		if len(rows) == 0 {
 			return Reply{Text: l.t.T(i18n.LedgerStatusForEmpty, c.Target), Ephemeral: true}, nil
 		}
-		return Reply{Text: l.t.T(i18n.LedgerStatusFor, c.Target, joinAmounts(rows)), Ephemeral: true}, nil
+		return Reply{Text: l.t.T(i18n.LedgerStatusFor, c.Target, joinAmounts(rows, l.t, time.Now().Unix())), Ephemeral: true}, nil
 
 	case parser.KindStatusAll:
 		owed, err := l.store.ListByCreditor(ctx, creditor)
@@ -84,14 +85,15 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 		if len(owed) == 0 && len(owe) == 0 {
 			return Reply{Text: l.t.T(i18n.LedgerStatusAllEmpty), Ephemeral: true}, nil
 		}
+		now := time.Now().Unix()
 		var b strings.Builder
 		if len(owed) > 0 {
 			b.WriteString(l.t.T(i18n.LedgerStatusAllOwedHeader))
-			writeGroupedLines(&b, l.t, owed, func(d store.Debt) string { return d.Debtor })
+			writeGroupedLines(&b, l.t, now, owed, func(d store.Debt) string { return d.Debtor })
 		}
 		if len(owe) > 0 {
 			b.WriteString(l.t.T(i18n.LedgerStatusAllOweHeader))
-			writeGroupedLines(&b, l.t, owe, func(d store.Debt) string { return d.Creditor })
+			writeGroupedLines(&b, l.t, now, owe, func(d store.Debt) string { return d.Creditor })
 		}
 		return Reply{Text: b.String(), Ephemeral: true}, nil
 
@@ -147,14 +149,14 @@ func (l *Ledger) renderPay(ctx context.Context, userID string, isSelf bool) (Rep
 	return Reply{Text: b.String(), Ephemeral: true}, nil
 }
 
-func writeGroupedLines(b *strings.Builder, t *i18n.Translator, rows []store.Debt, key func(store.Debt) string) {
+func writeGroupedLines(b *strings.Builder, t *i18n.Translator, now int64, rows []store.Debt, key func(store.Debt) string) {
 	var lastKey string
 	var group []store.Debt
 	flush := func() {
 		if len(group) == 0 {
 			return
 		}
-		b.WriteString(t.T(i18n.LedgerStatusAllLine, lastKey, joinAmounts(group)))
+		b.WriteString(t.T(i18n.LedgerStatusAllLine, lastKey, joinAmounts(group, t, now)))
 	}
 	for _, r := range rows {
 		k := key(r)
@@ -168,10 +170,10 @@ func writeGroupedLines(b *strings.Builder, t *i18n.Translator, rows []store.Debt
 	flush()
 }
 
-func joinAmounts(rows []store.Debt) string {
+func joinAmounts(rows []store.Debt, t *i18n.Translator, now int64) string {
 	parts := make([]string, len(rows))
 	for i, r := range rows {
-		parts[i] = fmt.Sprintf("%s %s", formatMinor(r.AmountMinor), r.Currency)
+		parts[i] = fmt.Sprintf("%s %s (%s)", formatMinor(r.AmountMinor), r.Currency, t.Since(now, r.InsertedAt))
 	}
 	return strings.Join(parts, ", ")
 }

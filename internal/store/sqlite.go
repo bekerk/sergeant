@@ -17,16 +17,18 @@ CREATE TABLE IF NOT EXISTS debts (
   debtor_id    TEXT    NOT NULL,
   currency     TEXT    NOT NULL,
   amount_minor INTEGER NOT NULL CHECK (amount_minor >= 0),
+  inserted_at  INTEGER NOT NULL DEFAULT (unixepoch()),
   updated_at   INTEGER NOT NULL,
   PRIMARY KEY (creditor_id, debtor_id, currency)
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS idx_debts_creditor ON debts(creditor_id);
 
 CREATE TABLE IF NOT EXISTS payment_methods (
-  user_id    TEXT    NOT NULL,
-  method     TEXT    NOT NULL,
-  value      TEXT    NOT NULL,
-  updated_at INTEGER NOT NULL,
+  user_id     TEXT    NOT NULL,
+  method      TEXT    NOT NULL,
+  value       TEXT    NOT NULL,
+  inserted_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at  INTEGER NOT NULL,
   PRIMARY KEY (user_id, method)
 ) WITHOUT ROWID;
 `
@@ -36,12 +38,14 @@ type Debt struct {
 	Debtor      string
 	Currency    string
 	AmountMinor int64
+	InsertedAt  int64
 }
 
 type PaymentMethod struct {
-	UserID string
-	Method string
-	Value  string
+	UserID     string
+	Method     string
+	Value      string
+	InsertedAt int64
 }
 
 type SQLite struct{ db *sql.DB }
@@ -77,13 +81,13 @@ func (s *SQLite) AddDelta(ctx context.Context, creditor, debtor, currency string
 
 	now := time.Now().Unix()
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO debts(creditor_id, debtor_id, currency, amount_minor, updated_at)
-		VALUES (?, ?, ?, MAX(0, ?), ?)
+		INSERT INTO debts(creditor_id, debtor_id, currency, amount_minor, inserted_at, updated_at)
+		VALUES (?, ?, ?, MAX(0, ?), ?, ?)
 		ON CONFLICT(creditor_id, debtor_id, currency)
 		DO UPDATE SET
 		  amount_minor = MAX(0, amount_minor + ?),
 		  updated_at = excluded.updated_at`,
-		creditor, debtor, currency, delta, now, delta,
+		creditor, debtor, currency, delta, now, now, delta,
 	)
 	if err != nil {
 		return 0, err
@@ -124,7 +128,7 @@ func (s *SQLite) ResetPairCurrency(ctx context.Context, creditor, debtor, curren
 
 func (s *SQLite) ListPair(ctx context.Context, creditor, debtor string) ([]Debt, error) {
 	return s.query(ctx, `
-		SELECT creditor_id, debtor_id, currency, amount_minor FROM debts
+		SELECT creditor_id, debtor_id, currency, amount_minor, inserted_at FROM debts
 		WHERE creditor_id=? AND debtor_id=? AND amount_minor > 0
 		ORDER BY currency`,
 		creditor, debtor)
@@ -132,7 +136,7 @@ func (s *SQLite) ListPair(ctx context.Context, creditor, debtor string) ([]Debt,
 
 func (s *SQLite) ListByCreditor(ctx context.Context, creditor string) ([]Debt, error) {
 	return s.query(ctx, `
-		SELECT creditor_id, debtor_id, currency, amount_minor FROM debts
+		SELECT creditor_id, debtor_id, currency, amount_minor, inserted_at FROM debts
 		WHERE creditor_id=? AND amount_minor > 0
 		ORDER BY debtor_id, currency`,
 		creditor)
@@ -140,7 +144,7 @@ func (s *SQLite) ListByCreditor(ctx context.Context, creditor string) ([]Debt, e
 
 func (s *SQLite) ListByDebtor(ctx context.Context, debtor string) ([]Debt, error) {
 	return s.query(ctx, `
-		SELECT creditor_id, debtor_id, currency, amount_minor FROM debts
+		SELECT creditor_id, debtor_id, currency, amount_minor, inserted_at FROM debts
 		WHERE debtor_id=? AND amount_minor > 0
 		ORDER BY creditor_id, currency`,
 		debtor)
@@ -151,12 +155,13 @@ func (s *SQLite) ListByDebtor(ctx context.Context, debtor string) ([]Debt, error
  */
 
 func (s *SQLite) SetPaymentMethod(ctx context.Context, userID, method, value string) error {
+	now := time.Now().Unix()
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO payment_methods(user_id, method, value, updated_at)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO payment_methods(user_id, method, value, inserted_at, updated_at)
+		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(user_id, method)
 		DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-		userID, method, value, time.Now().Unix())
+		userID, method, value, now, now)
 	return err
 }
 
@@ -174,7 +179,7 @@ func (s *SQLite) ClearPaymentMethods(ctx context.Context, userID string) error {
 
 func (s *SQLite) ListPaymentMethods(ctx context.Context, userID string) ([]PaymentMethod, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT user_id, method, value FROM payment_methods WHERE user_id=? ORDER BY method`,
+		`SELECT user_id, method, value, inserted_at FROM payment_methods WHERE user_id=? ORDER BY method`,
 		userID)
 	if err != nil {
 		return nil, err
@@ -183,7 +188,7 @@ func (s *SQLite) ListPaymentMethods(ctx context.Context, userID string) ([]Payme
 	var out []PaymentMethod
 	for rows.Next() {
 		var p PaymentMethod
-		if err := rows.Scan(&p.UserID, &p.Method, &p.Value); err != nil {
+		if err := rows.Scan(&p.UserID, &p.Method, &p.Value, &p.InsertedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -204,7 +209,7 @@ func (s *SQLite) query(ctx context.Context, q string, args ...any) ([]Debt, erro
 	var out []Debt
 	for rows.Next() {
 		var d Debt
-		if err := rows.Scan(&d.Creditor, &d.Debtor, &d.Currency, &d.AmountMinor); err != nil {
+		if err := rows.Scan(&d.Creditor, &d.Debtor, &d.Currency, &d.AmountMinor, &d.InsertedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, d)
