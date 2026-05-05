@@ -52,3 +52,20 @@ func TestUnknownKeyReturnsID(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestAvailable(t *testing.T) {
+	got := Available()
+	if len(got) != len(bundles) {
+		t.Fatalf("len = %d, want %d", len(got), len(bundles))
+	}
+	for i := 1; i < len(got); i++ {
+		if got[i-1] >= got[i] {
+			t.Fatalf("not sorted: %v", got)
+		}
+	}
+	for _, locale := range got {
+		if _, ok := bundles[locale]; !ok {
+			t.Errorf("returned %q not in bundles", locale)
+		}
+	}
+}

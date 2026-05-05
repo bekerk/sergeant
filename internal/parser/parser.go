@@ -2,6 +2,7 @@ package parser
 
 import (
 	"errors"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -198,7 +199,7 @@ func NormalizeCurrency(s string) (string, error) {
 func parseMinor(s string) (int64, error) {
 	intPart, fracPart, hasFrac := strings.Cut(s, ".")
 	whole, err := strconv.ParseInt(intPart, 10, 64)
-	if err != nil || whole < 0 {
+	if err != nil || whole < 0 || whole > math.MaxInt64/100 {
 		return 0, errors.New("bad amount")
 	}
 	if !hasFrac {

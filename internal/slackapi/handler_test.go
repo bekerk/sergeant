@@ -363,6 +363,247 @@ func TestViewSubmissionEmptyValueReopensWithErrors(t *testing.T) {
 	}
 }
 
+func TestAppMentionPaySetInline(t *testing.T) {
+	h, sp, l := newHandler(t)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, sign(t, appMention("<@USERGEANT> pay set bank PL61 1090 0000 1234"), time.Now().Unix()))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d", rec.Code)
+	}
+	p := sp.wait(t)
+	if !p.ephemeral {
+		t.Error("pay set reply should be ephemeral")
+	}
+	if !strings.Contains(p.text, "bank") {
+		t.Errorf("text=%q missing method", p.text)
+	}
+	r, _ := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindPayShowSelf})
+	for _, want := range []string{"bank", "PL61 1090 0000 1234"} {
+		if !strings.Contains(r.Text, want) {
+			t.Errorf("ledger view %q missing %q", r.Text, want)
+		}
+	}
+}
+
+func TestAppMentionPayRemove(t *testing.T) {
+	h, sp, l := newHandler(t)
+	if _, err := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindPaySet, PayMethod: "bank", PayValue: "PL61"}); err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, sign(t, appMention("<@USERGEANT> pay rm bank"), time.Now().Unix()))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d", rec.Code)
+	}
+	sp.wait(t)
+	r, _ := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindPayShowSelf})
+	if !strings.Contains(r.Text, "haven't added") {
+		t.Errorf("payment methods should be empty, got %q", r.Text)
+	}
+}
+
+func TestAppMentionPayClear(t *testing.T) {
+	h, sp, l := newHandler(t)
+	for _, m := range []string{"bank", "blik"} {
+		if _, err := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindPaySet, PayMethod: m, PayValue: "x"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, sign(t, appMention("<@USERGEANT> pay clear"), time.Now().Unix()))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d", rec.Code)
+	}
+	sp.wait(t)
+	r, _ := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindPayShowSelf})
+	if !strings.Contains(r.Text, "haven't added") {
+		t.Errorf("expected empty payment list, got %q", r.Text)
+	}
+}
+
+func TestAppMentionReset(t *testing.T) {
+	h, sp, l := newHandler(t)
+	ctx := context.Background()
+	if _, err := l.Apply(ctx, "UAAA", parser.Command{Kind: parser.KindAdd, Target: "UBBB", Sign: 1, Minor: 2000, Currency: "PLN"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.Apply(ctx, "UAAA", parser.Command{Kind: parser.KindAdd, Target: "UBBB", Sign: 1, Minor: 1000, Currency: "EUR"}); err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, sign(t, appMention("<@USERGEANT> <@UBBB> reset"), time.Now().Unix()))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d", rec.Code)
+	}
+	sp.wait(t)
+	r, _ := l.Apply(ctx, "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
+	if !strings.Contains(r.Text, "nothing") {
+		t.Errorf("both currencies should be cleared, got %q", r.Text)
+	}
+}
+
+func TestAppMentionResetCurrency(t *testing.T) {
+	h, sp, l := newHandler(t)
+	ctx := context.Background()
+	if _, err := l.Apply(ctx, "UAAA", parser.Command{Kind: parser.KindAdd, Target: "UBBB", Sign: 1, Minor: 2000, Currency: "PLN"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.Apply(ctx, "UAAA", parser.Command{Kind: parser.KindAdd, Target: "UBBB", Sign: 1, Minor: 1000, Currency: "EUR"}); err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, sign(t, appMention("<@USERGEANT> <@UBBB> reset PLN"), time.Now().Unix()))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d", rec.Code)
+	}
+	sp.wait(t)
+	r, _ := l.Apply(ctx, "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
+	if strings.Contains(r.Text, "PLN") {
+		t.Errorf("PLN should be cleared, got %q", r.Text)
+	}
+	if !strings.Contains(r.Text, "10.00 EUR") {
+		t.Errorf("EUR should remain, got %q", r.Text)
+	}
+}
+
+func TestRejectsNonPost(t *testing.T) {
+	h, _, _ := newHandler(t)
+	req := httptest.NewRequest(http.MethodGet, "/slack/events", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("got %d, want 405", rec.Code)
+	}
+}
+
+func TestRejectsBadJSON(t *testing.T) {
+	h, _, _ := newHandler(t)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, sign(t, []byte("not-json"), time.Now().Unix()))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("got %d, want 400", rec.Code)
+	}
+}
+
+func TestIgnoresUnknownOuterEventType(t *testing.T) {
+	h, sp, _ := newHandler(t)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, sign(t, []byte(`{"type":"app_rate_limited"}`), time.Now().Unix()))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d", rec.Code)
+	}
+	select {
+	case <-sp.done:
+		t.Fatal("responder should not have been called")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestServeInteractivityNoPayload(t *testing.T) {
+	h, sp, _ := newHandler(t)
+	body := url.Values{"foo": []string{"bar"}}.Encode()
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, signForm(t, body, time.Now().Unix()))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("got %d, want 400", rec.Code)
+	}
+	select {
+	case <-sp.done:
+		t.Fatal("responder should not have been called")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestServeInteractivityBadPayloadJSON(t *testing.T) {
+	h, _, _ := newHandler(t)
+	body := url.Values{"payload": []string{"not-json"}}.Encode()
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, signForm(t, body, time.Now().Unix()))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("got %d, want 400", rec.Code)
+	}
+}
+
+func TestServeInteractivityIgnoresUnknownInteractionType(t *testing.T) {
+	h, sp, _ := newHandler(t)
+	payload := slack.InteractionCallback{
+		Type: slack.InteractionTypeShortcut,
+		User: slack.User{ID: "UAAA"},
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := url.Values{"payload": []string{string(raw)}}.Encode()
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, signForm(t, body, time.Now().Unix()))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d, want 200", rec.Code)
+	}
+	select {
+	case <-sp.done:
+		t.Fatal("responder should not have been called")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func directMessage(text string) []byte {
+	return []byte(fmt.Sprintf(`{"type":"event_callback","event":{"type":"message","channel_type":"im","user":"UAAA","text":%q,"channel":"D1","ts":"123.456"}}`, text))
+}
+
+func directMessageWithBot(text string) []byte {
+	return []byte(fmt.Sprintf(`{"type":"event_callback","event":{"type":"message","channel_type":"im","user":"UAAA","bot_id":"B1","text":%q,"channel":"D1","ts":"123.456"}}`, text))
+}
+
+func TestDirectMessageDispatch(t *testing.T) {
+	h, sp, l := newHandler(t)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, sign(t, directMessage("<@UBBB> +20 PLN"), time.Now().Unix()))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d", rec.Code)
+	}
+	p := sp.wait(t)
+	if p.ephemeral {
+		t.Errorf("DM reply should not be ephemeral")
+	}
+	if !strings.Contains(p.text, "20.00 PLN") {
+		t.Errorf("text=%q missing amount", p.text)
+	}
+	r, _ := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
+	if !strings.Contains(r.Text, "20.00 PLN") {
+		t.Fatalf("ledger view: %q", r.Text)
+	}
+}
+
+func TestDirectMessageIgnoresBots(t *testing.T) {
+	h, sp, _ := newHandler(t)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, sign(t, directMessageWithBot("<@UBBB> +20 PLN"), time.Now().Unix()))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d", rec.Code)
+	}
+	select {
+	case <-sp.done:
+		t.Fatal("bot DM should be ignored")
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func TestDispatchIgnoresUnknownInnerEvent(t *testing.T) {
+	h, sp, _ := newHandler(t)
+	body := []byte(`{"type":"event_callback","event":{"type":"reaction_added","user":"UAAA","reaction":"thumbsup"}}`)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, sign(t, body, time.Now().Unix()))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d", rec.Code)
+	}
+	select {
+	case <-sp.done:
+		t.Fatal("unknown inner event should not invoke responder")
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
 func TestStripBotMention(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"<@USERGEANT> +1", "+1"},

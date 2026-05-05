@@ -55,6 +55,8 @@ func TestParse(t *testing.T) {
 		{in: "pay nonsense", bad: true},
 		{in: "<@U1> status now", bad: true},
 		{in: "<@U1> reset PLN extra", bad: true},
+		{in: "<@U1> +99999999999999999999 PLN", bad: true}, // exceeds int64
+		{in: "<@U1> +100000000000000000 PLN", bad: true},   // 1e17, would overflow on *100
 	}
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {

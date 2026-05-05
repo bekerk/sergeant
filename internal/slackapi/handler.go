@@ -123,7 +123,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	case slackevents.CallbackEvent:
 		w.WriteHeader(http.StatusOK)
-		go h.dispatch(event)
+		go h.safely("dispatch", func() { h.dispatch(event) })
 
 	default:
 		h.Logger.Debug("ignoring event", "type", event.Type)
@@ -230,6 +230,15 @@ func (h *Handler) send(ctx context.Context, r Reply) {
 	}
 }
 
+func (h *Handler) safely(label string, fn func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			h.Logger.Error("panic in goroutine", "where", label, "panic", r)
+		}
+	}()
+	fn()
+}
+
 var leadingMentionRE = regexp.MustCompile(`^\s*<@([A-Z0-9]+)(?:\|[^>]*)?>\s*`)
 
 func stripBotMention(text, botID string) string {
@@ -262,7 +271,7 @@ func (h *Handler) serveInteractivity(w http.ResponseWriter, body []byte) {
 	switch cb.Type {
 	case slack.InteractionTypeBlockActions:
 		w.WriteHeader(http.StatusOK)
-		go h.handleBlockAction(cb)
+		go h.safely("handleBlockAction", func() { h.handleBlockAction(cb) })
 
 	case slack.InteractionTypeViewSubmission:
 		// view_submission must respond synchronously: empty 200 closes the

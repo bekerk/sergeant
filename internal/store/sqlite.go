@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS debts (
   creditor_id  TEXT    NOT NULL,
   debtor_id    TEXT    NOT NULL,
   currency     TEXT    NOT NULL,
-  amount_minor INTEGER NOT NULL,
+  amount_minor INTEGER NOT NULL CHECK (amount_minor >= 0),
   updated_at   INTEGER NOT NULL,
   PRIMARY KEY (creditor_id, debtor_id, currency)
 ) WITHOUT ROWID;
@@ -75,6 +75,20 @@ func (s *SQLite) AddDelta(ctx context.Context, creditor, debtor, currency string
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	now := time.Now().Unix()
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO debts(creditor_id, debtor_id, currency, amount_minor, updated_at)
+		VALUES (?, ?, ?, MAX(0, ?), ?)
+		ON CONFLICT(creditor_id, debtor_id, currency)
+		DO UPDATE SET
+		  amount_minor = MAX(0, amount_minor + ?),
+		  updated_at = excluded.updated_at`,
+		creditor, debtor, currency, delta, now, delta,
+	)
+	if err != nil {
+		return 0, err
+	}
+
 	var current int64
 	err = tx.QueryRowContext(ctx,
 		`SELECT amount_minor FROM debts WHERE creditor_id=? AND debtor_id=? AND currency=?`,
@@ -84,28 +98,15 @@ func (s *SQLite) AddDelta(ctx context.Context, creditor, debtor, currency string
 		return 0, err
 	}
 
-	next := current + delta
-	if next <= 0 {
-		_, err = tx.ExecContext(ctx,
+	if current == 0 {
+		if _, err = tx.ExecContext(ctx,
 			`DELETE FROM debts WHERE creditor_id=? AND debtor_id=? AND currency=?`,
-			creditor, debtor, currency)
-		if err != nil {
+			creditor, debtor, currency); err != nil {
 			return 0, err
 		}
 		return 0, tx.Commit()
 	}
-
-	_, err = tx.ExecContext(ctx, `
-		INSERT INTO debts(creditor_id, debtor_id, currency, amount_minor, updated_at)
-		VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT(creditor_id, debtor_id, currency)
-		DO UPDATE SET amount_minor = excluded.amount_minor, updated_at = excluded.updated_at`,
-		creditor, debtor, currency, next, time.Now().Unix(),
-	)
-	if err != nil {
-		return 0, err
-	}
-	return next, tx.Commit()
+	return current, tx.Commit()
 }
 
 func (s *SQLite) ResetPair(ctx context.Context, creditor, debtor string) error {

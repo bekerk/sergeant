@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -186,5 +187,67 @@ func TestSQLitePersistsAcrossReopen(t *testing.T) {
 	rows, _ := s2.ListPair(context.Background(), "A", "B")
 	if len(rows) != 1 || rows[0].AmountMinor != 1234 {
 		t.Fatalf("got %v", rows)
+	}
+}
+
+func TestAddDeltaConcurrent(t *testing.T) {
+	s, _ := openTemp(t)
+	ctx := context.Background()
+
+	const goroutines = 50
+	const perGoroutine = 10
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < perGoroutine; j++ {
+				if _, err := s.AddDelta(ctx, "A", "B", "PLN", 1); err != nil {
+					t.Errorf("AddDelta: %v", err)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+
+	rows, err := s.ListPair(ctx, "A", "B")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := int64(goroutines * perGoroutine)
+	if len(rows) != 1 || rows[0].AmountMinor != want {
+		t.Fatalf("final balance = %v, want single row of %d", rows, want)
+	}
+}
+
+func TestAddDeltaConcurrentMixedSigns(t *testing.T) {
+	s, _ := openTemp(t)
+	ctx := context.Background()
+
+	if _, err := s.AddDelta(ctx, "A", "B", "PLN", 100000); err != nil {
+		t.Fatal(err)
+	}
+
+	const goroutines = 40
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		delta := int64(1)
+		if i%2 == 1 {
+			delta = -1
+		}
+		go func(d int64) {
+			defer wg.Done()
+			if _, err := s.AddDelta(ctx, "A", "B", "PLN", d); err != nil {
+				t.Errorf("AddDelta: %v", err)
+			}
+		}(delta)
+	}
+	wg.Wait()
+
+	rows, _ := s.ListPair(ctx, "A", "B")
+	if len(rows) != 1 || rows[0].AmountMinor != 100000 {
+		t.Fatalf("final balance = %v, want 100000", rows)
 	}
 }
