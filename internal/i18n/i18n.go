@@ -86,7 +86,22 @@ var bundles = map[string]map[string]string{
 		PayOptPaypal:    "PayPal",
 		PayOptWise:      "Wise",
 
-		HandlerUsage:      "Usage: `@sergeant <@user> +AMOUNT [CCY]` / `-AMOUNT [CCY]`, `… reset [CCY]`, `… status` (or `?`), `@sergeant status`, `@sergeant pay`, `@sergeant pay set` (opens a form), `@sergeant pay set METHOD VALUE`, `@sergeant pay rm METHOD`, `@sergeant pay clear`, `@sergeant <@user> pay`, `@sergeant help`.",
+		HandlerUsage: "*Usage*\n\n" +
+			"*Tabs*\n" +
+			"- `@sergeant <@user> +AMOUNT [CCY]` - add to their tab\n" +
+			"- `@sergeant <@user> -AMOUNT [CCY]` - subtract from their tab\n" +
+			"- `@sergeant <@user> reset [CCY]` - clear their tab (one currency or all)\n" +
+			"- `@sergeant <@user> status` (or `?`) - what they owe you\n" +
+			"- `@sergeant status` (or `?`) - everything you owe and are owed\n\n" +
+			"*Payment methods*\n" +
+			"- `@sergeant pay` - show your saved methods\n" +
+			"- `@sergeant pay set` - open a private form\n" +
+			"- `@sergeant pay set METHOD VALUE` - save inline (e.g. `bank PL61 ...`)\n" +
+			"- `@sergeant pay rm METHOD` - remove one method\n" +
+			"- `@sergeant pay clear` - remove all methods\n" +
+			"- `@sergeant <@user> pay` - show someone else's methods\n\n" +
+			"*Other*\n" +
+			"- `@sergeant help` - ??? you are already seeing it!",
 		HandlerSelfTarget: "You can't owe yourself.",
 		HandlerError:      "Something went wrong.",
 	},
@@ -126,7 +141,22 @@ var bundles = map[string]map[string]string{
 		PayOptPaypal:    "PayPal",
 		PayOptWise:      "Wise",
 
-		HandlerUsage:      "Użycie: `@sergeant <@user> +KWOTA [WALUTA]` / `-KWOTA [WALUTA]`, `… reset [WALUTA]`, `… status` (lub `?`), `@sergeant status`, `@sergeant pay`, `@sergeant pay set` (otwiera formularz), `@sergeant pay set METODA WARTOŚĆ`, `@sergeant pay rm METODA`, `@sergeant pay clear`, `@sergeant <@user> pay`, `@sergeant help`.",
+		HandlerUsage: "*Użycie*\n\n" +
+			"*Rachunki*\n" +
+			"- `@sergeant <@user> +KWOTA [WALUTA]` - dolicz do jego rachunku\n" +
+			"- `@sergeant <@user> -KWOTA [WALUTA]` - odejmij od jego rachunku\n" +
+			"- `@sergeant <@user> reset [WALUTA]` - wyzeruj rachunek (jedna waluta lub wszystko)\n" +
+			"- `@sergeant <@user> status` (lub `?`) - ile jest ci winny\n" +
+			"- `@sergeant status` (lub `?`) - wszystko, co jesteś winny i co tobie są winni\n\n" +
+			"*Metody płatności*\n" +
+			"- `@sergeant pay` - pokaż twoje zapisane metody\n" +
+			"- `@sergeant pay set` - otwórz prywatny formularz\n" +
+			"- `@sergeant pay set METODA WARTOŚĆ` - zapisz w wierszu (np. `bank PL61 ...`)\n" +
+			"- `@sergeant pay rm METODA` - usuń jedną metodę\n" +
+			"- `@sergeant pay clear` - usuń wszystkie metody\n" +
+			"- `@sergeant <@user> pay` - pokaż metody innej osoby\n\n" +
+			"*Pozostałe*\n" +
+			"- `@sergeant help` - ??? to co wlasnie widzisz!",
 		HandlerSelfTarget: "Nie możesz zapisać długu na samego siebie.",
 		HandlerError:      "Coś poszło nie tak.",
 	},
