@@ -131,38 +131,55 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type incoming struct {
+	source                      string // "app_mention" or "im"
+	user, channel, ts, threadTs string
+	text                        string
+}
+
 func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
-	inner, ok := event.InnerEvent.Data.(*slackevents.AppMentionEvent)
-	if !ok {
-		h.Logger.Debug("non-mention callback", "inner_type", event.InnerEvent.Type)
+	var msg incoming
+	switch ev := event.InnerEvent.Data.(type) {
+	case *slackevents.AppMentionEvent:
+		msg = incoming{"app_mention", ev.User, ev.Channel, ev.TimeStamp, ev.ThreadTimeStamp, ev.Text}
+	case *slackevents.MessageEvent:
+		// Only direct messages from real users - skip channels, edits/joins,
+		// other bots, and our own outbound messages.
+		if ev.ChannelType != "im" || ev.BotID != "" || ev.SubType != "" || ev.User == "" || ev.User == h.BotUserID {
+			return
+		}
+		msg = incoming{"im", ev.User, ev.Channel, ev.TimeStamp, ev.ThreadTimeStamp, ev.Text}
+	default:
+		h.Logger.Debug("ignoring callback", "inner_type", event.InnerEvent.Type)
 		return
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), replyTimeout)
 	defer cancel()
 
-	stripped := stripBotMention(inner.Text, h.BotUserID)
-	h.Logger.Info("app_mention",
-		"user", inner.User,
-		"channel", inner.Channel,
+	stripped := stripBotMention(msg.text, h.BotUserID)
+	h.Logger.Info(msg.source,
+		"user", msg.user,
+		"channel", msg.channel,
 		"text", stripped,
 	)
 
 	cmd, err := parser.Parse(stripped)
 	if err != nil {
 		h.Logger.Info("unrecognized command", "text", stripped)
-		h.send(ctx, Reply{channel: inner.Channel, user: inner.User, text: h.Translator.T(i18n.HandlerUsage), ephemeral: true})
+		h.send(ctx, Reply{channel: msg.channel, user: msg.user, text: h.Translator.T(i18n.HandlerUsage), ephemeral: true})
 		return
 	}
 	h.Logger.Info("dispatch", "kind", cmd.Kind, "target", cmd.Target)
 
 	if cmd.Kind == parser.KindHelp {
-		h.send(ctx, Reply{channel: inner.Channel, user: inner.User, text: h.Translator.T(i18n.HandlerUsage), ephemeral: true})
+		h.send(ctx, Reply{channel: msg.channel, user: msg.user, text: h.Translator.T(i18n.HandlerUsage), ephemeral: true})
 		return
 	}
 
 	if cmd.Kind == parser.KindPaySetForm {
 		if err := h.Responder.PostEphemeralBlocks(
-			ctx, inner.Channel, inner.User,
+			ctx, msg.channel, msg.user,
 			h.Translator.T(i18n.PayOpenerText),
 			payOpenerBlocks(h.Translator),
 		); err != nil {
@@ -171,7 +188,7 @@ func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
 		return
 	}
 
-	r, err := h.Ledger.Apply(ctx, inner.User, cmd)
+	r, err := h.Ledger.Apply(ctx, msg.user, cmd)
 	if err != nil {
 		text := h.Translator.T(i18n.HandlerError)
 		if errors.Is(err, ledger.ErrSelfTarget) {
@@ -179,17 +196,17 @@ func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
 		} else {
 			h.Logger.Error("ledger apply", "err", err)
 		}
-		h.send(ctx, Reply{channel: inner.Channel, user: inner.User, text: text, ephemeral: true})
+		h.send(ctx, Reply{channel: msg.channel, user: msg.user, text: text, ephemeral: true})
 		return
 	}
 
-	threadTs := inner.ThreadTimeStamp
+	threadTs := msg.threadTs
 	if threadTs == "" {
-		threadTs = inner.TimeStamp
+		threadTs = msg.ts
 	}
 	h.send(ctx, Reply{
-		channel:   inner.Channel,
-		user:      inner.User,
+		channel:   msg.channel,
+		user:      msg.user,
 		threadTs:  threadTs,
 		text:      r.Text,
 		ephemeral: r.Ephemeral,
