@@ -30,8 +30,9 @@ Add/reset replies in the thread so the other person sees them. Status and pay re
 For dev:
 
 ```sh
-nix develop                 # or `direnv allow` if you use direnv
-SLACK_BOT_TOKEN=xoxb-... SLACK_SIGNING_SECRET=... make run
+cp .env.example .env        # then fill in SLACK_BOT_TOKEN / SLACK_SIGNING_SECRET
+nix develop                 # or `direnv allow` if you use direnv (auto-loads .env)
+make run
 ```
 
 One-shot run from the flake:
