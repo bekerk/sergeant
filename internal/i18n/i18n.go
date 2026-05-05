@@ -86,7 +86,7 @@ var bundles = map[string]map[string]string{
 		PayOptPaypal:    "PayPal",
 		PayOptWise:      "Wise",
 
-		HandlerUsage:      "Usage: `@sergeant <@user> +AMOUNT [CCY]` / `-AMOUNT [CCY]`, `… reset [CCY]`, `… status` (or `?`), `@sergeant status`, `@sergeant pay`, `@sergeant pay set` (opens a form), `@sergeant pay set METHOD VALUE`, `@sergeant pay rm METHOD`, `@sergeant pay clear`, `@sergeant <@user> pay`.",
+		HandlerUsage:      "Usage: `@sergeant <@user> +AMOUNT [CCY]` / `-AMOUNT [CCY]`, `… reset [CCY]`, `… status` (or `?`), `@sergeant status`, `@sergeant pay`, `@sergeant pay set` (opens a form), `@sergeant pay set METHOD VALUE`, `@sergeant pay rm METHOD`, `@sergeant pay clear`, `@sergeant <@user> pay`, `@sergeant help`.",
 		HandlerSelfTarget: "You can't owe yourself.",
 		HandlerError:      "Something went wrong.",
 	},
@@ -126,7 +126,7 @@ var bundles = map[string]map[string]string{
 		PayOptPaypal:    "PayPal",
 		PayOptWise:      "Wise",
 
-		HandlerUsage:      "Użycie: `@sergeant <@user> +KWOTA [WALUTA]` / `-KWOTA [WALUTA]`, `… reset [WALUTA]`, `… status` (lub `?`), `@sergeant status`, `@sergeant pay`, `@sergeant pay set` (otwiera formularz), `@sergeant pay set METODA WARTOŚĆ`, `@sergeant pay rm METODA`, `@sergeant pay clear`, `@sergeant <@user> pay`.",
+		HandlerUsage:      "Użycie: `@sergeant <@user> +KWOTA [WALUTA]` / `-KWOTA [WALUTA]`, `… reset [WALUTA]`, `… status` (lub `?`), `@sergeant status`, `@sergeant pay`, `@sergeant pay set` (otwiera formularz), `@sergeant pay set METODA WARTOŚĆ`, `@sergeant pay rm METODA`, `@sergeant pay clear`, `@sergeant <@user> pay`, `@sergeant help`.",
 		HandlerSelfTarget: "Nie możesz zapisać długu na samego siebie.",
 		HandlerError:      "Coś poszło nie tak.",
 	},

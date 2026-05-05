@@ -155,6 +155,11 @@ func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
 	}
 	h.Logger.Info("dispatch", "kind", cmd.Kind, "target", cmd.Target)
 
+	if cmd.Kind == parser.KindHelp {
+		h.send(ctx, Reply{channel: inner.Channel, user: inner.User, text: h.Translator.T(i18n.HandlerUsage), ephemeral: true})
+		return
+	}
+
 	if cmd.Kind == parser.KindPaySetForm {
 		if err := h.Responder.PostEphemeralBlocks(
 			ctx, inner.Channel, inner.User,

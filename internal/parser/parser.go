@@ -21,6 +21,7 @@ const (
 	KindPayClear
 	KindPayShowSelf
 	KindPayShowFor
+	KindHelp
 )
 
 type Command struct {
@@ -45,6 +46,9 @@ func Parse(text string) (Command, error) {
 	text = strings.TrimSpace(text)
 	if text == "?" || strings.EqualFold(text, "status") {
 		return Command{Kind: KindStatusAll}, nil
+	}
+	if strings.EqualFold(text, "help") {
+		return Command{Kind: KindHelp}, nil
 	}
 
 	// Pay commands without a leading user mention: pay / pay set / pay rm / pay clear.

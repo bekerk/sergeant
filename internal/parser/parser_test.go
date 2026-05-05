@@ -38,6 +38,9 @@ func TestParse(t *testing.T) {
 		{in: "pay set", want: Command{Kind: KindPaySetForm}},
 		{in: "<@U1> pay", want: Command{Kind: KindPayShowFor, Target: "U1"}},
 
+		{in: "help", want: Command{Kind: KindHelp}},
+		{in: "  HELP  ", want: Command{Kind: KindHelp}},
+
 		{in: "", bad: true},
 		{in: "hello", bad: true},
 		{in: "<@U1> 20 PLN", bad: true},       // amount missing sign
