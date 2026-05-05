@@ -1,4 +1,4 @@
-.PHONY: build run test fmt vet lint check tidy clean
+.PHONY: build run test fmt vet lint check ci-check tidy clean
 
 # Dev-loop targets. Assumes `go`, `golangci-lint`, etc. are on PATH -
 # `nix develop` (or direnv) provides them. For release builds use `nix build`.
@@ -25,6 +25,8 @@ lint:
 	golangci-lint run ./...
 
 check: fmt vet lint test
+
+ci-check: vet lint test
 
 tidy:
 	go mod tidy
