@@ -84,8 +84,7 @@ var bundles = map[string]map[string]string{
 		PayOptPaypal:    "PayPal",
 		PayOptWise:      "Wise",
 
-		HandlerUsage: "*Usage*\n\n" +
-			"*Tabs*\n" +
+		HandlerUsage: "*Tabs*\n" +
 			"- `@sergeant <@user> +AMOUNT [CCY]` - add to their tab\n" +
 			"- `@sergeant <@user> AMOUNT [CCY]` - plus is optional!\n" +
 			"- `@sergeant <@user> -AMOUNT [CCY]` - subtract from their tab\n" +
@@ -139,8 +138,7 @@ var bundles = map[string]map[string]string{
 		PayOptPaypal:    "PayPal",
 		PayOptWise:      "Wise",
 
-		HandlerUsage: "*Użycie*\n\n" +
-			"*Rachunki*\n" +
+		HandlerUsage: "*Rachunki*\n" +
 			"- `@sergeant <@user> +KWOTA [WALUTA]` - dolicz do jego rachunku\n" +
 			"- `@sergeant <@user> KWOTA [WALUTA]` - plus jest opcjonalny!\n" +
 			"- `@sergeant <@user> -KWOTA [WALUTA]` - odejmij od jego rachunku\n" +
