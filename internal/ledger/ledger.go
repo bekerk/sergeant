@@ -139,7 +139,7 @@ func (l *Ledger) renderPay(ctx context.Context, userID string, isSelf bool) (Rep
 	}
 	var b strings.Builder
 
-	b.WriteString(":money_with_wings: <@" + userID + ">")
+	b.WriteString("<@" + userID + "> :money_with_wings: ")
 
 	for _, pm := range pms {
 		b.WriteString(l.t.T(i18n.PayLine, pm.Method, pm.Value))
