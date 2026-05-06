@@ -109,7 +109,7 @@ var bundles = map[string]map[string]string{
 		LedgerResetAll:            "Wyzerowano rachunek <@%s>.",
 		LedgerResetCurrency:       "Wyzerowano rachunek <@%s> w %s.",
 		LedgerStatusForEmpty:      "<@%s> nie ma u Ciebie długu.",
-		LedgerStatusFor:           "<@%s> ma u Ciebie %s.",
+		LedgerStatusFor:           "<@%s> ma u Ciebie %s długu.",
 		LedgerStatusAllEmpty:      "Nikt nie ma u Ciebie długu i Ty też nie.",
 		LedgerStatusAllOwedHeader: "Mają u Ciebie dług:",
 		LedgerStatusAllOweHeader:  "\n\nMasz dług u:",
