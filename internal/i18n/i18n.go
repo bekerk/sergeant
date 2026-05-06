@@ -19,14 +19,13 @@ const (
 	LedgerStatusAllOweHeader  = "ledger.status_all_owe_header"  //
 	LedgerStatusAllLine       = "ledger.status_all_line"        // args: target, joined amounts
 
-	PaySaved         = "pay.saved"            // args: method
-	PayRemoved       = "pay.removed"          // args: method
-	PayCleared       = "pay.cleared"          //
-	PayShowSelfEmpty = "pay.show_self_empty"  //
-	PayShowSelfHead  = "pay.show_self_header" //
-	PayShowForEmpty  = "pay.show_for_empty"   // args: target
-	PayShowForHead   = "pay.show_for_header"  // args: target
-	PayLine          = "pay.line"             // args: method, value
+	PaySaved         = "pay.saved"           // args: method
+	PayRemoved       = "pay.removed"         // args: method
+	PayCleared       = "pay.cleared"         //
+	PayShowSelfEmpty = "pay.show_self_empty" //
+	PayShowForEmpty  = "pay.show_for_empty"  // args: target
+
+	PayLine = "pay.line" // args: method, value
 
 	// Modal flow:
 	PayOpenerText   = "pay.opener_text"
@@ -66,10 +65,9 @@ var bundles = map[string]map[string]string{
 		PayRemoved:       "Removed your `%s`.",
 		PayCleared:       "Cleared all your payment methods.",
 		PayShowSelfEmpty: "You haven't added any payment methods yet. Try `@sergeant pay set bank PL61 ...` or `@sergeant pay set blik 555 555 555`.",
-		PayShowSelfHead:  "Your payment methods:",
 		PayShowForEmpty:  "<@%s> hasn't added any payment methods.",
-		PayShowForHead:   "<@%s>'s payment methods:",
-		PayLine:          "\n• `%s` - %s",
+
+		PayLine: "\n• `%s` - %s",
 
 		PayOpenerText:   "Add a payment method privately",
 		PayOpenerButton: "Open form",
@@ -121,10 +119,9 @@ var bundles = map[string]map[string]string{
 		PayRemoved:       "Usunięto `%s`.",
 		PayCleared:       "Wyczyszczono wszystkie metody płatności.",
 		PayShowSelfEmpty: "Nie masz jeszcze żadnych metod płatności. Spróbuj `@sergeant pay set bank PL61 ...` lub `@sergeant pay set blik 555 555 555`.",
-		PayShowSelfHead:  "Twoje metody płatności:",
 		PayShowForEmpty:  "<@%s> nie dodał jeszcze żadnych metod płatności.",
-		PayShowForHead:   "Metody płatności <@%s>:",
-		PayLine:          "\n• `%s` - %s",
+
+		PayLine: "\n• `%s` - %s",
 
 		PayOpenerText:   "Dodaj metodę płatności.",
 		PayOpenerButton: "Otwórz formularz.",
