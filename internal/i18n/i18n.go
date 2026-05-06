@@ -92,7 +92,7 @@ var bundles = map[string]map[string]string{
 			"- `@sergeant <@user> status` (or `?`) - what they owe you\n" +
 			"- `@sergeant status` (or `?`) - everything you owe and are owed\n\n" +
 			"*Payment methods*\n" +
-			"- `@sergeant pay` - show your saved methods\n" +
+			"- `@sergeant pay me` - show your saved methods\n" +
 			"- `@sergeant pay set` - open a private form\n" +
 			"- `@sergeant pay set METHOD VALUE` - save inline (e.g. `bank PL61 ...`)\n" +
 			"- `@sergeant pay rm METHOD` - remove one method\n" +
@@ -146,7 +146,7 @@ var bundles = map[string]map[string]string{
 			"- `@sergeant <@user> status` (lub `?`) - ile jest ci winny\n" +
 			"- `@sergeant status` (lub `?`) - wszystko, co jesteś winny i co tobie są winni\n\n" +
 			"*Metody płatności*\n" +
-			"- `@sergeant pay` - pokaż twoje zapisane metody\n" +
+			"- `@sergeant pay me` - pokaż twoje zapisane metody\n" +
 			"- `@sergeant pay set` - otwórz prywatny formularz\n" +
 			"- `@sergeant pay set METODA WARTOŚĆ` - zapisz w wierszu (np. `bank PL61 ...`)\n" +
 			"- `@sergeant pay rm METODA` - usuń jedną metodę\n" +

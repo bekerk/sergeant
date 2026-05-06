@@ -124,15 +124,20 @@ func Parse(text string) (Command, error) {
 
 // parsePay handles the no-target pay forms:
 //
-//	pay                          → KindPayShowSelf
+//	pay me                       → KindPayShowSelf
 //	pay set <method> <value...>  → KindPaySet
 //	pay rm <method>              → KindPayRemove
 //	pay clear                    → KindPayClear
 func parsePay(fields []string) (Command, error) {
 	if len(fields) == 1 {
-		return Command{Kind: KindPayShowSelf}, nil
+		return Command{}, ErrUnrecognized
 	}
 	switch sub := strings.ToLower(fields[1]); sub {
+	case "me":
+		if len(fields) != 2 {
+			return Command{}, ErrUnrecognized
+		}
+		return Command{Kind: KindPayShowSelf}, nil
 	case "set":
 		if len(fields) == 2 {
 			// Bare `pay set` → handler should open the modal.

@@ -28,8 +28,8 @@ func TestParse(t *testing.T) {
 		{in: "  <@U1>   +20   PLN  ", want: Command{Kind: KindAdd, Target: "U1", Sign: 1, Minor: 2000, Currency: "PLN"}},
 
 		// Payment-method forms.
-		{in: "pay", want: Command{Kind: KindPayShowSelf}},
-		{in: "  PAY  ", want: Command{Kind: KindPayShowSelf}},
+		{in: "pay me", want: Command{Kind: KindPayShowSelf}},
+		{in: "  PAY  ME  ", want: Command{Kind: KindPayShowSelf}},
 		{in: "pay set bank PL61 1090 0000 1234 5678", want: Command{Kind: KindPaySet, PayMethod: "bank", PayValue: "PL61 1090 0000 1234 5678"}},
 		{in: "pay set BLIK 555 555 555", want: Command{Kind: KindPaySet, PayMethod: "blik", PayValue: "555 555 555"}},
 		{in: "pay rm bank", want: Command{Kind: KindPayRemove, PayMethod: "bank"}},
@@ -53,6 +53,8 @@ func TestParse(t *testing.T) {
 		{in: "pay rm", bad: true},
 		{in: "pay clear extra", bad: true},
 		{in: "pay nonsense", bad: true},
+		{in: "pay", bad: true}, // bare pay no longer recognized
+		{in: "pay me extra", bad: true},
 		{in: "<@U1> status now", bad: true},
 		{in: "<@U1> reset PLN extra", bad: true},
 		{in: "<@U1> +99999999999999999999 PLN", bad: true}, // exceeds int64
