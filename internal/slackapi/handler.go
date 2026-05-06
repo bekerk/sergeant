@@ -23,6 +23,7 @@ import (
 const (
 	maxBodyBytes = 1 << 20
 	replyTimeout = 5 * time.Second
+	mentionEmoji = "sergeant"
 )
 
 type Responder interface {
@@ -30,6 +31,7 @@ type Responder interface {
 	PostEphemeral(ctx context.Context, channel, user, text string) error
 	PostEphemeralBlocks(ctx context.Context, channel, user, fallback string, blocks []slack.Block) error
 	OpenView(ctx context.Context, triggerID string, view slack.ModalViewRequest) error
+	AddReaction(ctx context.Context, channel, ts, name string) error
 }
 
 type SlackResponder struct{ Client *slack.Client }
@@ -63,6 +65,10 @@ func (r SlackResponder) PostEphemeralBlocks(ctx context.Context, channel, user, 
 func (r SlackResponder) OpenView(ctx context.Context, triggerID string, view slack.ModalViewRequest) error {
 	_, err := r.Client.OpenViewContext(ctx, triggerID, view)
 	return err
+}
+
+func (r SlackResponder) AddReaction(ctx context.Context, channel, ts, name string) error {
+	return r.Client.AddReactionContext(ctx, name, slack.NewRefToMessage(channel, ts))
 }
 
 type Handler struct {
@@ -156,6 +162,12 @@ func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), replyTimeout)
 	defer cancel()
+
+	if msg.source == "app_mention" {
+		if err := h.Responder.AddReaction(ctx, msg.channel, msg.ts, mentionEmoji); err != nil {
+			h.Logger.Warn("add reaction", "err", err)
+		}
+	}
 
 	stripped := stripBotMention(msg.text, h.BotUserID)
 	h.Logger.Info(msg.source,

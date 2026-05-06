@@ -37,12 +37,15 @@ type post struct {
 	ephemeral             bool
 }
 
+type reaction struct{ channel, ts, name string }
+
 type spy struct {
-	mu       sync.Mutex
-	calls    []post
-	views    []slack.ModalViewRequest
-	triggers []string
-	done     chan struct{}
+	mu        sync.Mutex
+	calls     []post
+	views     []slack.ModalViewRequest
+	triggers  []string
+	reactions []reaction
+	done      chan struct{}
 }
 
 func newSpy() *spy { return &spy{done: make(chan struct{}, 8)} }
@@ -62,6 +65,12 @@ func (s *spy) OpenView(_ context.Context, triggerID string, view slack.ModalView
 	s.views = append(s.views, view)
 	s.mu.Unlock()
 	s.done <- struct{}{}
+	return nil
+}
+func (s *spy) AddReaction(_ context.Context, channel, ts, name string) error {
+	s.mu.Lock()
+	s.reactions = append(s.reactions, reaction{channel, ts, name})
+	s.mu.Unlock()
 	return nil
 }
 func (s *spy) add(p post) error {
@@ -189,6 +198,34 @@ func TestAppMentionDispatch(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAppMentionAddsReaction(t *testing.T) {
+	h, sp, _ := newHandler(t)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, sign(t, appMention("<@USERGEANT> status"), time.Now().Unix()))
+	sp.wait(t)
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	if len(sp.reactions) != 1 {
+		t.Fatalf("reactions = %v, want 1", sp.reactions)
+	}
+	got := sp.reactions[0]
+	if got.channel != "C1" || got.ts != "123.456" || got.name != "sergeant" {
+		t.Errorf("reaction = %+v", got)
+	}
+}
+
+func TestDirectMessageNoReaction(t *testing.T) {
+	h, sp, _ := newHandler(t)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, sign(t, directMessage("<@UBBB> +20 PLN"), time.Now().Unix()))
+	sp.wait(t)
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	if len(sp.reactions) != 0 {
+		t.Errorf("DM should not trigger a reaction, got %v", sp.reactions)
 	}
 }
 
