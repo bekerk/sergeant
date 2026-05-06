@@ -138,11 +138,9 @@ func (l *Ledger) renderPay(ctx context.Context, userID string, isSelf bool) (Rep
 		return Reply{Text: l.t.T(i18n.PayShowForEmpty, userID)}, nil
 	}
 	var b strings.Builder
-	if isSelf {
-		b.WriteString(":money_with_wings:")
-	} else {
-		b.WriteString(":money_with_wings: <@" + userID + ">")
-	}
+
+	b.WriteString(":money_with_wings: <@" + userID + ">")
+
 	for _, pm := range pms {
 		b.WriteString(l.t.T(i18n.PayLine, pm.Method, pm.Value))
 	}
