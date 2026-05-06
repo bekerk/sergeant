@@ -219,11 +219,12 @@ type Reply struct {
 }
 
 func (h *Handler) send(ctx context.Context, r Reply) {
+	text := ":cop: " + r.text
 	var err error
 	if r.ephemeral {
-		err = h.Responder.PostEphemeral(ctx, r.channel, r.user, r.text)
+		err = h.Responder.PostEphemeral(ctx, r.channel, r.user, text)
 	} else {
-		err = h.Responder.PostInThread(ctx, r.channel, r.threadTs, r.text)
+		err = h.Responder.PostInThread(ctx, r.channel, r.threadTs, text)
 	}
 	if err != nil {
 		h.Logger.Error("post reply", "err", err)

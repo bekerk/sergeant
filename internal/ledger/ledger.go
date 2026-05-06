@@ -69,9 +69,9 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 			return Reply{}, err
 		}
 		if len(rows) == 0 {
-			return Reply{Text: l.t.T(i18n.LedgerStatusForEmpty, c.Target), Ephemeral: true}, nil
+			return Reply{Text: l.t.T(i18n.LedgerStatusForEmpty, c.Target)}, nil
 		}
-		return Reply{Text: l.t.T(i18n.LedgerStatusFor, c.Target, joinAmounts(rows, l.t, time.Now().Unix())), Ephemeral: true}, nil
+		return Reply{Text: l.t.T(i18n.LedgerStatusFor, c.Target, joinAmounts(rows, l.t, time.Now().Unix()))}, nil
 
 	case parser.KindStatusAll:
 		owed, err := l.store.ListByCreditor(ctx, creditor)
@@ -83,7 +83,7 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 			return Reply{}, err
 		}
 		if len(owed) == 0 && len(owe) == 0 {
-			return Reply{Text: l.t.T(i18n.LedgerStatusAllEmpty), Ephemeral: true}, nil
+			return Reply{Text: l.t.T(i18n.LedgerStatusAllEmpty)}, nil
 		}
 		now := time.Now().Unix()
 		var b strings.Builder
@@ -95,7 +95,7 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 			b.WriteString(l.t.T(i18n.LedgerStatusAllOweHeader))
 			writeGroupedLines(&b, l.t, now, owe, func(d store.Debt) string { return d.Creditor })
 		}
-		return Reply{Text: b.String(), Ephemeral: true}, nil
+		return Reply{Text: b.String()}, nil
 
 	case parser.KindPaySet:
 		if err := l.store.SetPaymentMethod(ctx, creditor, c.PayMethod, c.PayValue); err != nil {

@@ -91,7 +91,7 @@ func TestLedger(t *testing.T) {
 	t.Run("status-for empty and populated", func(t *testing.T) {
 		l := newLedger(t)
 		empty, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindStatusFor, Target: "B"})
-		if !empty.Ephemeral || !strings.Contains(empty.Text, "owes you nothing") {
+		if empty.Ephemeral || !strings.Contains(empty.Text, "owes you nothing") {
 			t.Fatalf("got %+v", empty)
 		}
 		add(t, l, "A", "B", 1, 2000, "PLN")
@@ -222,8 +222,8 @@ func TestLedger(t *testing.T) {
 			t.Fatalf("B view should not have an owed-to-you section: %q", bView.Text)
 		}
 		aView, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindStatusAll})
-		if !aView.Ephemeral {
-			t.Fatal("status-all should be ephemeral")
+		if aView.Ephemeral {
+			t.Fatal("status-all should not be ephemeral")
 		}
 		if !strings.Contains(aView.Text, "Owed to you:") {
 			t.Fatalf("missing owed header in %q", aView.Text)
