@@ -371,8 +371,8 @@ func TestAppMentionPaySetInline(t *testing.T) {
 		t.Fatalf("got %d", rec.Code)
 	}
 	p := sp.wait(t)
-	if !p.ephemeral {
-		t.Error("pay set reply should be ephemeral")
+	if p.ephemeral {
+		t.Error("pay set reply should not be ephemeral")
 	}
 	if !strings.Contains(p.text, "bank") {
 		t.Errorf("text=%q missing method", p.text)

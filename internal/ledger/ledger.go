@@ -101,19 +101,19 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 		if err := l.store.SetPaymentMethod(ctx, creditor, c.PayMethod, c.PayValue); err != nil {
 			return Reply{}, err
 		}
-		return Reply{Text: l.t.T(i18n.PaySaved, c.PayMethod), Ephemeral: true}, nil
+		return Reply{Text: l.t.T(i18n.PaySaved, c.PayMethod)}, nil
 
 	case parser.KindPayRemove:
 		if err := l.store.RemovePaymentMethod(ctx, creditor, c.PayMethod); err != nil {
 			return Reply{}, err
 		}
-		return Reply{Text: l.t.T(i18n.PayRemoved, c.PayMethod), Ephemeral: true}, nil
+		return Reply{Text: l.t.T(i18n.PayRemoved, c.PayMethod)}, nil
 
 	case parser.KindPayClear:
 		if err := l.store.ClearPaymentMethods(ctx, creditor); err != nil {
 			return Reply{}, err
 		}
-		return Reply{Text: l.t.T(i18n.PayCleared), Ephemeral: true}, nil
+		return Reply{Text: l.t.T(i18n.PayCleared)}, nil
 
 	case parser.KindPayShowSelf:
 		return l.renderPay(ctx, creditor, true)
@@ -133,9 +133,9 @@ func (l *Ledger) renderPay(ctx context.Context, userID string, isSelf bool) (Rep
 	}
 	if len(pms) == 0 {
 		if isSelf {
-			return Reply{Text: l.t.T(i18n.PayShowSelfEmpty), Ephemeral: true}, nil
+			return Reply{Text: l.t.T(i18n.PayShowSelfEmpty)}, nil
 		}
-		return Reply{Text: l.t.T(i18n.PayShowForEmpty, userID), Ephemeral: true}, nil
+		return Reply{Text: l.t.T(i18n.PayShowForEmpty, userID)}, nil
 	}
 	var b strings.Builder
 	if isSelf {
@@ -146,7 +146,7 @@ func (l *Ledger) renderPay(ctx context.Context, userID string, isSelf bool) (Rep
 	for _, pm := range pms {
 		b.WriteString(l.t.T(i18n.PayLine, pm.Method, pm.Value))
 	}
-	return Reply{Text: b.String(), Ephemeral: true}, nil
+	return Reply{Text: b.String()}, nil
 }
 
 func writeGroupedLines(b *strings.Builder, t *i18n.Translator, now int64, rows []store.Debt, key func(store.Debt) string) {

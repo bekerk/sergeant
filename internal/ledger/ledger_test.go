@@ -150,7 +150,7 @@ func TestLedger(t *testing.T) {
 
 		// Empty self.
 		empty, _ := l.Apply(ctx, "A", parser.Command{Kind: parser.KindPayShowSelf})
-		if !empty.Ephemeral || !strings.Contains(empty.Text, "haven't added") {
+		if empty.Ephemeral || !strings.Contains(empty.Text, "haven't added") {
 			t.Fatalf("empty self: %+v", empty)
 		}
 
