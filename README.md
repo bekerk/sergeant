@@ -10,6 +10,7 @@ A Slack bot that tracks who owes you money.
 
 ```
 @sergeant @jan +20 PLN     jan now owes you 20 PLN
+@sergeant @jan 20 PLN      plus is optional!
 @sergeant @jan -5          knocks 5 off his tab (default currency)
 @sergeant @jan reset       clears his tab with you
 @sergeant @jan status      shows what he owes you (or @sergeant @jan ?)
@@ -21,6 +22,9 @@ A Slack bot that tracks who owes you money.
 @sergeant @jan pay         shows jan's payment methods
 @sergeant pay rm bank      removes one method
 @sergeant pay clear        wipes all your methods
+
+@sergeant help             shows the help message (private to you)
+@sergeant hello            posts the help message to the channel
 ```
 
 Add/reset replies in the thread so the other person sees them. Status and pay replies are private to you.

@@ -23,6 +23,7 @@ const (
 	KindPayShowSelf
 	KindPayShowFor
 	KindHelp
+	KindHello
 )
 
 type Command struct {
@@ -40,7 +41,7 @@ var ErrUnrecognized = errors.New("unrecognized command")
 
 var (
 	mentionRE = regexp.MustCompile(`^<@([A-Z0-9]+)(?:\|[^>]*)?>`)
-	amountRE  = regexp.MustCompile(`^([+-])(\d+(?:\.\d{1,2})?)$`)
+	amountRE  = regexp.MustCompile(`^([+-]?)(\d+(?:\.\d{1,2})?)$`)
 )
 
 func Parse(text string) (Command, error) {
@@ -50,6 +51,9 @@ func Parse(text string) (Command, error) {
 	}
 	if strings.EqualFold(text, "help") {
 		return Command{Kind: KindHelp}, nil
+	}
+	if strings.EqualFold(text, "hello") {
+		return Command{Kind: KindHello}, nil
 	}
 
 	// Pay commands without a leading user mention: pay / pay set / pay rm / pay clear.

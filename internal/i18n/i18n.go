@@ -87,6 +87,7 @@ var bundles = map[string]map[string]string{
 		HandlerUsage: "*Usage*\n\n" +
 			"*Tabs*\n" +
 			"- `@sergeant <@user> +AMOUNT [CCY]` - add to their tab\n" +
+			"- `@sergeant <@user> AMOUNT [CCY]` - plus is optional!\n" +
 			"- `@sergeant <@user> -AMOUNT [CCY]` - subtract from their tab\n" +
 			"- `@sergeant <@user> reset [CCY]` - clear their tab (one currency or all)\n" +
 			"- `@sergeant <@user> status` (or `?`) - what they owe you\n" +
@@ -141,6 +142,7 @@ var bundles = map[string]map[string]string{
 		HandlerUsage: "*Użycie*\n\n" +
 			"*Rachunki*\n" +
 			"- `@sergeant <@user> +KWOTA [WALUTA]` - dolicz do jego rachunku\n" +
+			"- `@sergeant <@user> KWOTA [WALUTA]` - plus jest opcjonalny!\n" +
 			"- `@sergeant <@user> -KWOTA [WALUTA]` - odejmij od jego rachunku\n" +
 			"- `@sergeant <@user> reset [WALUTA]` - wyzeruj rachunek (jedna waluta lub wszystko)\n" +
 			"- `@sergeant <@user> status` (lub `?`) - ile jest ci winny\n" +

@@ -12,6 +12,8 @@ func TestParse(t *testing.T) {
 		bad  bool
 	}{
 		{in: "<@U1> +20 PLN", want: Command{Kind: KindAdd, Target: "U1", Sign: 1, Minor: 2000, Currency: "PLN"}},
+		{in: "<@U1> 20 PLN", want: Command{Kind: KindAdd, Target: "U1", Sign: 1, Minor: 2000, Currency: "PLN"}},
+		{in: "<@U1> 2137", want: Command{Kind: KindAdd, Target: "U1", Sign: 1, Minor: 213700}},
 		{in: "<@U1> +20", want: Command{Kind: KindAdd, Target: "U1", Sign: 1, Minor: 2000}},
 		{in: "<@U1> +20.50 EUR", want: Command{Kind: KindAdd, Target: "U1", Sign: 1, Minor: 2050, Currency: "EUR"}},
 		{in: "<@U1> +0.01", want: Command{Kind: KindAdd, Target: "U1", Sign: 1, Minor: 1}},
@@ -41,9 +43,10 @@ func TestParse(t *testing.T) {
 		{in: "help", want: Command{Kind: KindHelp}},
 		{in: "  HELP  ", want: Command{Kind: KindHelp}},
 
+		{in: "hello", want: Command{Kind: KindHello}},
+		{in: "  HELLO  ", want: Command{Kind: KindHello}},
+
 		{in: "", bad: true},
-		{in: "hello", bad: true},
-		{in: "<@U1> 20 PLN", bad: true},       // amount missing sign
 		{in: "<@U1> +abc", bad: true},         // bad amount
 		{in: "<@U1> +20 PLNS", bad: true},     // bad currency
 		{in: "<@U1> +20.123", bad: true},      // too many fraction digits
