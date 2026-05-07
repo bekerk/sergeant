@@ -302,7 +302,7 @@ func TestLedger(t *testing.T) {
 		_, _ = l.Apply(ctx, "C", parser.Command{Kind: parser.KindPaySetDefault, PayMethod: "blik"})
 
 		aView, _ := l.Apply(ctx, "A", parser.Command{Kind: parser.KindStatusAll})
-		want := "You owe:\n- <@C> - 36.00 PLN(blik 555 555 555) (just now)\n- <@D> - 15.00 EUR (just now)"
+		want := "You owe:\n- <@C> - 36.00 PLN (`blik 555 555 555`) (just now)\n- <@D> - 15.00 EUR (just now)"
 		if aView.Text != want {
 			t.Errorf("status-all text\n  got:  %q\n  want: %q", aView.Text, want)
 		}

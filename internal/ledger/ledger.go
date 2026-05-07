@@ -204,7 +204,7 @@ func joinAmounts(rows []store.Debt, t *i18n.Translator, now int64, pay *store.Pa
 		amount := formatMinor(r.AmountMinor)
 		since := t.Since(now, r.InsertedAt)
 		if pay != nil {
-			parts[i] = fmt.Sprintf("%s %s(%s %s) (%s)", amount, r.Currency, pay.Method, pay.Value, since)
+			parts[i] = fmt.Sprintf("%s %s (`%s %s`) (%s)", amount, r.Currency, pay.Method, pay.Value, since)
 		} else {
 			parts[i] = fmt.Sprintf("%s %s (%s)", amount, r.Currency, since)
 		}
