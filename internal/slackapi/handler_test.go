@@ -176,6 +176,10 @@ func TestAppMentionDispatch(t *testing.T) {
 		{name: "add", text: "<@USERGEANT> <@UBBB> +20 PLN", ephemeral: false, wants: []string{"<@UBBB>", "20.00 PLN"}, target: "123.456"},
 		{name: "status all", text: "<@USERGEANT> status", ephemeral: false, wants: []string{"Nobody owes you"}, target: "123.456"},
 		{name: "unrecognized", text: "<@USERGEANT> ¿qué?", ephemeral: true, wants: []string{"Tabs"}, target: "UAAA"},
+		{name: "bare mention", text: "<@USERGEANT>", ephemeral: true, wants: []string{"Tabs"}, target: "UAAA"},
+		{name: "bad amount", text: "<@USERGEANT> <@UBBB> +abc", ephemeral: true, wants: []string{"Tabs"}, target: "UAAA"},
+		{name: "bad currency", text: "<@USERGEANT> <@UBBB> +20 PLNS", ephemeral: true, wants: []string{"Tabs"}, target: "UAAA"},
+		{name: "unknown pay subcommand", text: "<@USERGEANT> pay nonsense", ephemeral: true, wants: []string{"Tabs"}, target: "UAAA"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

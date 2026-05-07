@@ -21,9 +21,10 @@ import (
 )
 
 const (
-	maxBodyBytes = 1 << 20
-	replyTimeout = 5 * time.Second
-	mentionEmoji = "sergeant"
+	maxBodyBytes             = 1 << 20
+	replyTimeout             = 5 * time.Second
+	mentionEmoji             = "sergeant"
+	unrecognizedCommandEmoji = "sergeant-no"
 )
 
 type Responder interface {
@@ -179,6 +180,9 @@ func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
 	cmd, err := parser.Parse(stripped)
 	if err != nil {
 		h.Logger.Info("unrecognized command", "text", stripped)
+		if err := h.Responder.AddReaction(ctx, msg.channel, msg.ts, unrecognizedCommandEmoji); err != nil {
+			h.Logger.Warn("add reaction", "err", err)
+		}
 		h.send(ctx, Reply{channel: msg.channel, user: msg.user, text: h.Translator.T(i18n.HandlerUsage), ephemeral: true})
 		return
 	}
