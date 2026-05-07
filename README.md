@@ -1,7 +1,7 @@
 # sergeant
 
 <p align="center">
-  <img width="40%" src="assets/bg.png" />
+  <img width="40%" src="assets/sergeant.png" />
 </p>
 
 A Slack bot that tracks who owes you money.
