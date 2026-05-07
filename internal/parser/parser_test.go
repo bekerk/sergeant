@@ -38,6 +38,8 @@ func TestParse(t *testing.T) {
 		{in: "  PAY  ME  ", want: Command{Kind: KindPayShowSelf}},
 		{in: "pay set bank PL61 1090 0000 1234 5678", want: Command{Kind: KindPaySet, PayMethod: "bank", PayValue: "PL61 1090 0000 1234 5678"}},
 		{in: "pay set BLIK 555 555 555", want: Command{Kind: KindPaySet, PayMethod: "blik", PayValue: "555 555 555"}},
+		{in: "pay set-default bank", want: Command{Kind: KindPaySetDefault, PayMethod: "bank"}},
+		{in: "pay set-default BLIK", want: Command{Kind: KindPaySetDefault, PayMethod: "blik"}},
 		{in: "pay rm bank", want: Command{Kind: KindPayRemove, PayMethod: "bank"}},
 		{in: "pay remove bank", want: Command{Kind: KindPayRemove, PayMethod: "bank"}},
 		{in: "pay clear", want: Command{Kind: KindPayClear}},
@@ -51,15 +53,18 @@ func TestParse(t *testing.T) {
 		{in: "  HELLO  ", want: Command{Kind: KindHello}},
 
 		{in: "", bad: true},
-		{in: "<@U1> +abc", bad: true},         // bad amount
-		{in: "<@U1> +20 PLNS", bad: true},     // bad currency
-		{in: "<@U1> +20.123", bad: true},      // too many fraction digits
-		{in: "<@U1> +20,123", bad: true},      // too many fraction digits (comma)
-		{in: "<@U1> +20,", bad: true},         // trailing comma
-		{in: "<@U1> +20.", bad: true},         // trailing dot
-		{in: "<@U1> +1,2,3", bad: true},       // multiple separators
-		{in: "<@U1> pay 20", bad: true},       // pay takes no args after target
-		{in: "pay set bank", bad: true},       // missing value
+		{in: "<@U1> +abc", bad: true},      // bad amount
+		{in: "<@U1> +20 PLNS", bad: true},  // bad currency
+		{in: "<@U1> +20.123", bad: true},   // too many fraction digits
+		{in: "<@U1> +20,123", bad: true},   // too many fraction digits (comma)
+		{in: "<@U1> +20,", bad: true},      // trailing comma
+		{in: "<@U1> +20.", bad: true},      // trailing dot
+		{in: "<@U1> +1,2,3", bad: true},    // multiple separators
+		{in: "<@U1> pay 20", bad: true},    // pay takes no args after target
+		{in: "pay set bank", bad: true},    // missing value
+		{in: "pay set-default", bad: true}, // missing method
+		{in: "pay set-default a b", bad: true},
+		{in: "pay set-default BAD!", bad: true},
 		{in: "pay set BAD! value", bad: true}, // invalid method chars
 		{in: "pay rm", bad: true},
 		{in: "pay clear extra", bad: true},

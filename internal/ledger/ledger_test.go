@@ -208,6 +208,40 @@ func TestLedger(t *testing.T) {
 		}
 	})
 
+	t.Run("pay set-default flags exactly one method", func(t *testing.T) {
+		l := newLedger(t)
+		ctx := context.Background()
+
+		// Saving methods first.
+		_, _ = l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySet, PayMethod: "bank", PayValue: "PL61"})
+		_, _ = l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySet, PayMethod: "blik", PayValue: "555"})
+
+		// Marking blik as default succeeds and is reflected in show-self.
+		ok, err := l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySetDefault, PayMethod: "blik"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(ok.Text, "Set `blik`") {
+			t.Fatalf("set-default reply: %q", ok.Text)
+		}
+		mine, _ := l.Apply(ctx, "A", parser.Command{Kind: parser.KindPayShowSelf})
+		if !strings.Contains(mine.Text, "blik` - 555 (default)") {
+			t.Fatalf("expected blik to render as default: %q", mine.Text)
+		}
+		if strings.Contains(mine.Text, "bank` - PL61 (default)") {
+			t.Fatalf("bank should not be marked default: %q", mine.Text)
+		}
+
+		// Trying to default an unsaved method gives a friendly hint, not an error.
+		miss, err := l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySetDefault, PayMethod: "wise"})
+		if err != nil {
+			t.Fatalf("missing method should not error: %v", err)
+		}
+		if !strings.Contains(miss.Text, "wise") {
+			t.Fatalf("missing-method reply: %q", miss.Text)
+		}
+	})
+
 	t.Run("status-all groups by debtor and isolates per creditor", func(t *testing.T) {
 		l := newLedger(t)
 		add(t, l, "A", "B", 1, 2000, "PLN")

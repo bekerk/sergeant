@@ -2,9 +2,14 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"testing"
+
+	_ "modernc.org/sqlite"
 )
 
 func openTemp(t *testing.T) (*SQLite, string) {
@@ -174,6 +179,159 @@ func TestSQLitePaymentMethods(t *testing.T) {
 	}
 	if pms, _ := s.ListPaymentMethods(ctx, "U2"); len(pms) != 1 {
 		t.Fatalf("U2 should be untouched: %v", pms)
+	}
+}
+
+func TestSQLiteDefaultPaymentMethod(t *testing.T) {
+	ctx := context.Background()
+	s, _ := openTemp(t)
+
+	if err := s.SetDefaultPaymentMethod(ctx, "U1", "bank"); !errors.Is(err, ErrUnknownMethod) {
+		t.Fatalf("expected ErrUnknownMethod, got %v", err)
+	}
+
+	if err := s.SetPaymentMethod(ctx, "U1", "bank", "PL61"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetPaymentMethod(ctx, "U1", "blik", "555"); err != nil {
+		t.Fatal(err)
+	}
+
+	pms, _ := s.ListPaymentMethods(ctx, "U1")
+	for _, pm := range pms {
+		if pm.IsDefault {
+			t.Fatalf("expected no defaults, got %+v", pm)
+		}
+	}
+
+	if err := s.SetDefaultPaymentMethod(ctx, "U1", "blik"); err != nil {
+		t.Fatal(err)
+	}
+	pms, _ = s.ListPaymentMethods(ctx, "U1")
+	if len(pms) != 2 || pms[0].Method != "blik" || !pms[0].IsDefault || pms[1].IsDefault {
+		t.Fatalf("after set-default blik: %+v", pms)
+	}
+
+	if err := s.SetDefaultPaymentMethod(ctx, "U1", "bank"); err != nil {
+		t.Fatal(err)
+	}
+	pms, _ = s.ListPaymentMethods(ctx, "U1")
+	if len(pms) != 2 || pms[0].Method != "bank" || !pms[0].IsDefault || pms[1].IsDefault {
+		t.Fatalf("after set-default bank: %+v", pms)
+	}
+
+	if err := s.SetPaymentMethod(ctx, "U1", "bank", "PL99"); err != nil {
+		t.Fatal(err)
+	}
+	pms, _ = s.ListPaymentMethods(ctx, "U1")
+	if pms[0].Method != "bank" || pms[0].Value != "PL99" || !pms[0].IsDefault {
+		t.Fatalf("update should preserve default: %+v", pms)
+	}
+
+	if err := s.RemovePaymentMethod(ctx, "U1", "bank"); err != nil {
+		t.Fatal(err)
+	}
+	pms, _ = s.ListPaymentMethods(ctx, "U1")
+	if len(pms) != 1 || pms[0].IsDefault {
+		t.Fatalf("removing default should leave no default: %+v", pms)
+	}
+}
+
+func TestSQLiteMigrateFromV0(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "legacy.db")
+
+	rawDB, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rawDB.Exec(bootstrap); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rawDB.Exec(
+		`INSERT INTO payment_methods(user_id, method, value, updated_at)
+		 VALUES ('U1', 'bank', 'PL61', unixepoch())`); err != nil {
+		t.Fatal(err)
+	}
+	_ = rawDB.Close()
+
+	s, err := Open(path)
+	if err != nil {
+		t.Fatalf("open after legacy seed: %v", err)
+	}
+	defer func() { _ = s.Close() }()
+
+	var version int
+	if err := s.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != len(migrations) {
+		t.Fatalf("user_version = %d, want %d", version, len(migrations))
+	}
+
+	pms, err := s.ListPaymentMethods(ctx, "U1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pms) != 1 || pms[0].Value != "PL61" || pms[0].IsDefault {
+		t.Fatalf("after migrate: %+v", pms)
+	}
+	if err := s.SetDefaultPaymentMethod(ctx, "U1", "bank"); err != nil {
+		t.Fatalf("set-default after migrate: %v", err)
+	}
+}
+
+func TestSQLiteMigrateIsIdempotent(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "current.db")
+
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetPaymentMethod(ctx, "U1", "bank", "PL61"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetDefaultPaymentMethod(ctx, "U1", "bank"); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Close()
+
+	s2, err := Open(path)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	defer func() { _ = s2.Close() }()
+
+	var version int
+	if err := s2.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != len(migrations) {
+		t.Fatalf("user_version = %d, want %d", version, len(migrations))
+	}
+	pms, _ := s2.ListPaymentMethods(ctx, "U1")
+	if len(pms) != 1 || !pms[0].IsDefault {
+		t.Fatalf("default flag lost across reopen: %+v", pms)
+	}
+}
+
+func TestSQLiteMigrateRejectsFutureSchema(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "future.db")
+	rawDB, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rawDB.Exec(bootstrap); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rawDB.Exec(fmt.Sprintf("PRAGMA user_version = %d", len(migrations)+5)); err != nil {
+		t.Fatal(err)
+	}
+	_ = rawDB.Close()
+
+	if _, err := Open(path); err == nil {
+		t.Fatal("expected Open to reject a future schema version")
 	}
 }
 

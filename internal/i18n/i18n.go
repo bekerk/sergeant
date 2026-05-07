@@ -19,13 +19,16 @@ const (
 	LedgerStatusAllOweHeader  = "ledger.status_all_owe_header"  //
 	LedgerStatusAllLine       = "ledger.status_all_line"        // args: target, joined amounts
 
-	PaySaved         = "pay.saved"           // args: method
-	PayRemoved       = "pay.removed"         // args: method
-	PayCleared       = "pay.cleared"         //
-	PayShowSelfEmpty = "pay.show_self_empty" //
-	PayShowForEmpty  = "pay.show_for_empty"  // args: target
+	PaySaved          = "pay.saved"           // args: method
+	PayRemoved        = "pay.removed"         // args: method
+	PayCleared        = "pay.cleared"         //
+	PayDefaultSet     = "pay.default_set"     // args: method
+	PayDefaultMissing = "pay.default_missing" // args: method
+	PayShowSelfEmpty  = "pay.show_self_empty" //
+	PayShowForEmpty   = "pay.show_for_empty"  // args: target
 
-	PayLine = "pay.line" // args: method, value
+	PayLine        = "pay.line"         // args: method, value
+	PayLineDefault = "pay.line_default" // args: method, value
 
 	// Modal flow:
 	PayOpenerText   = "pay.opener_text"
@@ -58,16 +61,19 @@ var bundles = map[string]map[string]string{
 		LedgerStatusFor:           "<@%s> owes you %s.",
 		LedgerStatusAllEmpty:      "Nobody owes you and you owe nothing.",
 		LedgerStatusAllOwedHeader: "Owed to you:",
-		LedgerStatusAllOweHeader:  "\n\nYou owe:",
+		LedgerStatusAllOweHeader:  "You owe:",
 		LedgerStatusAllLine:       "\n• <@%s> - %s",
 
-		PaySaved:         "Saved your `%s`.",
-		PayRemoved:       "Removed your `%s`.",
-		PayCleared:       "Cleared all your payment methods.",
-		PayShowSelfEmpty: "You haven't added any payment methods yet. Try `@sergeant pay set bank PL61 ...` or `@sergeant pay set blik 555 555 555`.",
-		PayShowForEmpty:  "<@%s> hasn't added any payment methods.",
+		PaySaved:          "Saved your `%s`.",
+		PayRemoved:        "Removed your `%s`.",
+		PayCleared:        "Cleared all your payment methods.",
+		PayDefaultSet:     "Set `%s` as your default payment method.",
+		PayDefaultMissing: "You haven't saved `%s` yet — add it first with `pay set %[1]s ...`.",
+		PayShowSelfEmpty:  "You haven't added any payment methods yet. Try `@sergeant pay set bank PL61 ...` or `@sergeant pay set blik 555 555 555`.",
+		PayShowForEmpty:   "<@%s> hasn't added any payment methods.",
 
-		PayLine: "\n• `%s` - %s",
+		PayLine:        "\n• `%s` - %s",
+		PayLineDefault: "\n• `%s` - %s (default)",
 
 		PayOpenerText:   "Add a payment method privately",
 		PayOpenerButton: "Open form",
@@ -95,6 +101,7 @@ var bundles = map[string]map[string]string{
 			"- `@sergeant pay me` - show your saved methods\n" +
 			"- `@sergeant pay set` - open a private form\n" +
 			"- `@sergeant pay set METHOD VALUE` - save inline (e.g. `bank PL61 ...`)\n" +
+			"- `@sergeant pay set-default METHOD` - mark a saved method as default\n" +
 			"- `@sergeant pay rm METHOD` - remove one method\n" +
 			"- `@sergeant pay clear` - remove all methods\n" +
 			"- `@sergeant <@user> pay` - show someone else's methods\n\n" +
@@ -112,16 +119,19 @@ var bundles = map[string]map[string]string{
 		LedgerStatusFor:           "<@%s> ma u Ciebie %s długu.",
 		LedgerStatusAllEmpty:      "Nikt nie ma u Ciebie długu i Ty też nie.",
 		LedgerStatusAllOwedHeader: "Mają u Ciebie dług:",
-		LedgerStatusAllOweHeader:  "\n\nMasz dług u:",
+		LedgerStatusAllOweHeader:  "Masz dług u:",
 		LedgerStatusAllLine:       "\n• <@%s> - %s",
 
-		PaySaved:         "Zapisano `%s`.",
-		PayRemoved:       "Usunięto `%s`.",
-		PayCleared:       "Wyczyszczono wszystkie metody płatności.",
-		PayShowSelfEmpty: "Nie masz jeszcze żadnych metod płatności. Spróbuj `@sergeant pay set bank PL61 ...` lub `@sergeant pay set blik 555 555 555`.",
-		PayShowForEmpty:  "<@%s> nie dodał jeszcze żadnych metod płatności.",
+		PaySaved:          "Zapisano `%s`.",
+		PayRemoved:        "Usunięto `%s`.",
+		PayCleared:        "Wyczyszczono wszystkie metody płatności.",
+		PayDefaultSet:     "Ustawiono `%s` jako domyślną metodę płatności.",
+		PayDefaultMissing: "Nie masz jeszcze zapisanej metody `%s` — najpierw dodaj ją przez `pay set %[1]s ...`.",
+		PayShowSelfEmpty:  "Nie masz jeszcze żadnych metod płatności. Spróbuj `@sergeant pay set bank PL61 ...` lub `@sergeant pay set blik 555 555 555`.",
+		PayShowForEmpty:   "<@%s> nie dodał jeszcze żadnych metod płatności.",
 
-		PayLine: "\n• `%s` - %s",
+		PayLine:        "\n• `%s` - %s",
+		PayLineDefault: "\n• `%s` - %s (default)",
 
 		PayOpenerText:   "Dodaj metodę płatności.",
 		PayOpenerButton: "Otwórz formularz.",
@@ -149,6 +159,7 @@ var bundles = map[string]map[string]string{
 			"- `@sergeant pay me` - pokaż twoje zapisane metody\n" +
 			"- `@sergeant pay set` - otwórz prywatny formularz\n" +
 			"- `@sergeant pay set METODA WARTOŚĆ` - zapisz w wierszu (np. `bank PL61 ...`)\n" +
+			"- `@sergeant pay set-default METODA` - oznacz metodę jako domyślną\n" +
 			"- `@sergeant pay rm METODA` - usuń jedną metodę\n" +
 			"- `@sergeant pay clear` - usuń wszystkie metody\n" +
 			"- `@sergeant <@user> pay` - pokaż metody innej osoby\n\n" +

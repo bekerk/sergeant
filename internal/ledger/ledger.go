@@ -103,6 +103,15 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 		}
 		return Reply{Text: l.t.T(i18n.PaySaved, c.PayMethod)}, nil
 
+	case parser.KindPaySetDefault:
+		if err := l.store.SetDefaultPaymentMethod(ctx, creditor, c.PayMethod); err != nil {
+			if errors.Is(err, store.ErrUnknownMethod) {
+				return Reply{Text: l.t.T(i18n.PayDefaultMissing, c.PayMethod)}, nil
+			}
+			return Reply{}, err
+		}
+		return Reply{Text: l.t.T(i18n.PayDefaultSet, c.PayMethod)}, nil
+
 	case parser.KindPayRemove:
 		if err := l.store.RemovePaymentMethod(ctx, creditor, c.PayMethod); err != nil {
 			return Reply{}, err
@@ -142,7 +151,11 @@ func (l *Ledger) renderPay(ctx context.Context, userID string, isSelf bool) (Rep
 	b.WriteString("<@" + userID + "> :money_with_wings: ")
 
 	for _, pm := range pms {
-		b.WriteString(l.t.T(i18n.PayLine, pm.Method, pm.Value))
+		id := i18n.PayLine
+		if pm.IsDefault {
+			id = i18n.PayLineDefault
+		}
+		b.WriteString(l.t.T(id, pm.Method, pm.Value))
 	}
 	return Reply{Text: b.String()}, nil
 }

@@ -18,6 +18,7 @@ const (
 	KindStatusAll
 	KindPaySet
 	KindPaySetForm
+	KindPaySetDefault
 	KindPayRemove
 	KindPayClear
 	KindPayShowSelf
@@ -159,6 +160,15 @@ func parsePay(fields []string) (Command, error) {
 			return Command{}, ErrUnrecognized
 		}
 		return Command{Kind: KindPaySet, PayMethod: method, PayValue: value}, nil
+	case "set-default":
+		if len(fields) != 3 {
+			return Command{}, ErrUnrecognized
+		}
+		method, ok := normalizeMethod(fields[2])
+		if !ok {
+			return Command{}, ErrUnrecognized
+		}
+		return Command{Kind: KindPaySetDefault, PayMethod: method}, nil
 	case "rm", "remove":
 		if len(fields) != 3 {
 			return Command{}, ErrUnrecognized
