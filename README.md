@@ -18,6 +18,7 @@ A Slack bot that tracks who owes you money.
 
 @sergeant pay set          opens a private form to add a payment method
 @sergeant pay set bank PL61 1090 ...   same, but typed inline
+@sergeant pay set-default bank         marks a saved method as your default
 @sergeant pay me           shows your own payment methods
 @sergeant @jan pay         shows jan's payment methods
 @sergeant pay rm bank      removes one method
@@ -28,6 +29,8 @@ A Slack bot that tracks who owes you money.
 ```
 
 Add/reset replies in the thread so the other person sees them. Status and pay replies are private to you.
+
+You can also DM the bot directly - drop the `@sergeant` prefix and just type the command (e.g. `@jan +20 PLN`).
 
 ## Running it
 
@@ -53,8 +56,8 @@ It listens on `:8080` and expects Slack events at `/slack/events`. For local dev
 
 In your Slack app:
 
-- OAuth scopes: `app_mentions:read`, `chat:write`, `chat:write.public`.
-- Event Subscriptions: enable, request URL `https://your-host/slack/events`, subscribe to `app_mention`.
+- OAuth scopes: `app_mentions:read`, `chat:write`, `chat:write.public`, `im:history` (for DMs).
+- Event Subscriptions: enable, request URL `https://your-host/slack/events`, subscribe to `app_mention` and `message.im`.
 - Interactivity & Shortcuts: enable, request URL `https://your-host/slack/events`.
 
 ## Env vars
