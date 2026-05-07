@@ -109,6 +109,9 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 			writeGroupedLines(&b, l.t, now, owed, func(d store.Debt) string { return d.Debtor }, nil)
 		}
 		if len(owe) > 0 {
+			if len(owed) > 0 {
+				b.WriteString("\n")
+			}
 			b.WriteString(l.t.T(i18n.LedgerStatusAllOweHeader))
 			writeGroupedLines(&b, l.t, now, owe, func(d store.Debt) string { return d.Creditor }, creditorPay)
 		}
