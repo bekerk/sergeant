@@ -41,7 +41,7 @@ var ErrUnrecognized = errors.New("unrecognized command")
 
 var (
 	mentionRE = regexp.MustCompile(`^<@([A-Z0-9]+)(?:\|[^>]*)?>`)
-	amountRE  = regexp.MustCompile(`^([+-]?)(\d+(?:\.\d{1,2})?)$`)
+	amountRE  = regexp.MustCompile(`^([+-]?)(\d+)(?:[.,](\d{1,2}))?$`)
 )
 
 func Parse(text string) (Command, error) {
@@ -106,7 +106,7 @@ func Parse(text string) (Command, error) {
 		if am == nil {
 			return Command{}, ErrUnrecognized
 		}
-		minor, err := parseMinor(am[2])
+		minor, err := parseMinor(am[2], am[3])
 		if err != nil {
 			return Command{}, ErrUnrecognized
 		}
@@ -205,17 +205,13 @@ func NormalizeCurrency(s string) (string, error) {
 	return s, nil
 }
 
-func parseMinor(s string) (int64, error) {
-	intPart, fracPart, hasFrac := strings.Cut(s, ".")
+func parseMinor(intPart, fracPart string) (int64, error) {
 	whole, err := strconv.ParseInt(intPart, 10, 64)
 	if err != nil || whole < 0 || whole > math.MaxInt64/100 {
 		return 0, errors.New("bad amount")
 	}
-	if !hasFrac {
+	if fracPart == "" {
 		return whole * 100, nil
-	}
-	if len(fracPart) == 0 || len(fracPart) > 2 {
-		return 0, errors.New("bad amount")
 	}
 	frac, err := strconv.ParseInt(fracPart, 10, 64)
 	if err != nil || frac < 0 {

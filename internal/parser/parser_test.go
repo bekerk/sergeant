@@ -16,7 +16,11 @@ func TestParse(t *testing.T) {
 		{in: "<@U1> 2137", want: Command{Kind: KindAdd, Target: "U1", Sign: 1, Minor: 213700}},
 		{in: "<@U1> +20", want: Command{Kind: KindAdd, Target: "U1", Sign: 1, Minor: 2000}},
 		{in: "<@U1> +20.50 EUR", want: Command{Kind: KindAdd, Target: "U1", Sign: 1, Minor: 2050, Currency: "EUR"}},
+		{in: "<@U1> +20,50 EUR", want: Command{Kind: KindAdd, Target: "U1", Sign: 1, Minor: 2050, Currency: "EUR"}},
+		{in: "<@U1> 12,95 GBP", want: Command{Kind: KindAdd, Target: "U1", Sign: 1, Minor: 1295, Currency: "GBP"}},
+		{in: "<@U1> -3,5 PLN", want: Command{Kind: KindAdd, Target: "U1", Sign: -1, Minor: 350, Currency: "PLN"}},
 		{in: "<@U1> +0.01", want: Command{Kind: KindAdd, Target: "U1", Sign: 1, Minor: 1}},
+		{in: "<@U1> +0,01", want: Command{Kind: KindAdd, Target: "U1", Sign: 1, Minor: 1}},
 		{in: "<@U1> -5 PLN", want: Command{Kind: KindAdd, Target: "U1", Sign: -1, Minor: 500, Currency: "PLN"}},
 		{in: "<@U1|name> +1", want: Command{Kind: KindAdd, Target: "U1", Sign: 1, Minor: 100}},
 		{in: "<@U1> reset", want: Command{Kind: KindReset, Target: "U1"}},
@@ -50,6 +54,10 @@ func TestParse(t *testing.T) {
 		{in: "<@U1> +abc", bad: true},         // bad amount
 		{in: "<@U1> +20 PLNS", bad: true},     // bad currency
 		{in: "<@U1> +20.123", bad: true},      // too many fraction digits
+		{in: "<@U1> +20,123", bad: true},      // too many fraction digits (comma)
+		{in: "<@U1> +20,", bad: true},         // trailing comma
+		{in: "<@U1> +20.", bad: true},         // trailing dot
+		{in: "<@U1> +1,2,3", bad: true},       // multiple separators
 		{in: "<@U1> pay 20", bad: true},       // pay takes no args after target
 		{in: "pay set bank", bad: true},       // missing value
 		{in: "pay set BAD! value", bad: true}, // invalid method chars
