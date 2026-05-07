@@ -71,7 +71,7 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 		if len(rows) == 0 {
 			return Reply{Text: l.t.T(i18n.LedgerStatusForEmpty, c.Target)}, nil
 		}
-		return Reply{Text: l.t.T(i18n.LedgerStatusFor, c.Target, joinAmounts(rows, l.t, time.Now().Unix()))}, nil
+		return Reply{Text: l.t.T(i18n.LedgerStatusFor, c.Target, joinAmounts(rows, l.t, time.Now().Unix(), nil))}, nil
 
 	case parser.KindStatusAll:
 		owed, err := l.store.ListByCreditor(ctx, creditor)
@@ -85,15 +85,32 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 		if len(owed) == 0 && len(owe) == 0 {
 			return Reply{Text: l.t.T(i18n.LedgerStatusAllEmpty)}, nil
 		}
+
+		creditorPay := map[string]*store.PaymentMethod{}
+		for _, r := range owe {
+			if _, seen := creditorPay[r.Creditor]; seen {
+				continue
+			}
+			pm, ok, err := l.store.DefaultPaymentMethod(ctx, r.Creditor)
+			if err != nil {
+				return Reply{}, err
+			}
+			if ok {
+				creditorPay[r.Creditor] = &pm
+			} else {
+				creditorPay[r.Creditor] = nil
+			}
+		}
+
 		now := time.Now().Unix()
 		var b strings.Builder
 		if len(owed) > 0 {
 			b.WriteString(l.t.T(i18n.LedgerStatusAllOwedHeader))
-			writeGroupedLines(&b, l.t, now, owed, func(d store.Debt) string { return d.Debtor })
+			writeGroupedLines(&b, l.t, now, owed, func(d store.Debt) string { return d.Debtor }, nil)
 		}
 		if len(owe) > 0 {
 			b.WriteString(l.t.T(i18n.LedgerStatusAllOweHeader))
-			writeGroupedLines(&b, l.t, now, owe, func(d store.Debt) string { return d.Creditor })
+			writeGroupedLines(&b, l.t, now, owe, func(d store.Debt) string { return d.Creditor }, creditorPay)
 		}
 		return Reply{Text: b.String()}, nil
 
@@ -160,14 +177,14 @@ func (l *Ledger) renderPay(ctx context.Context, userID string, isSelf bool) (Rep
 	return Reply{Text: b.String()}, nil
 }
 
-func writeGroupedLines(b *strings.Builder, t *i18n.Translator, now int64, rows []store.Debt, key func(store.Debt) string) {
+func writeGroupedLines(b *strings.Builder, t *i18n.Translator, now int64, rows []store.Debt, key func(store.Debt) string, payByKey map[string]*store.PaymentMethod) {
 	var lastKey string
 	var group []store.Debt
 	flush := func() {
 		if len(group) == 0 {
 			return
 		}
-		b.WriteString(t.T(i18n.LedgerStatusAllLine, lastKey, joinAmounts(group, t, now)))
+		b.WriteString(t.T(i18n.LedgerStatusAllLine, lastKey, joinAmounts(group, t, now, payByKey[lastKey])))
 	}
 	for _, r := range rows {
 		k := key(r)
@@ -181,10 +198,16 @@ func writeGroupedLines(b *strings.Builder, t *i18n.Translator, now int64, rows [
 	flush()
 }
 
-func joinAmounts(rows []store.Debt, t *i18n.Translator, now int64) string {
+func joinAmounts(rows []store.Debt, t *i18n.Translator, now int64, pay *store.PaymentMethod) string {
 	parts := make([]string, len(rows))
 	for i, r := range rows {
-		parts[i] = fmt.Sprintf("%s %s (%s)", formatMinor(r.AmountMinor), r.Currency, t.Since(now, r.InsertedAt))
+		amount := formatMinor(r.AmountMinor)
+		since := t.Since(now, r.InsertedAt)
+		if pay != nil {
+			parts[i] = fmt.Sprintf("%s %s(%s %s) (%s)", amount, r.Currency, pay.Method, pay.Value, since)
+		} else {
+			parts[i] = fmt.Sprintf("%s %s (%s)", amount, r.Currency, since)
+		}
 	}
 	return strings.Join(parts, ", ")
 }

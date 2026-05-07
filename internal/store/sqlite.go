@@ -253,6 +253,23 @@ func (s *SQLite) ClearPaymentMethods(ctx context.Context, userID string) error {
 	return err
 }
 
+func (s *SQLite) DefaultPaymentMethod(ctx context.Context, userID string) (PaymentMethod, bool, error) {
+	var p PaymentMethod
+	err := s.db.QueryRowContext(ctx, `
+		SELECT user_id, method, value, is_default, inserted_at FROM payment_methods
+		WHERE user_id=? AND is_default=1`,
+		userID,
+	).Scan(&p.UserID, &p.Method, &p.Value, &p.IsDefault, &p.InsertedAt)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return PaymentMethod{}, false, nil
+	}
+	if err != nil {
+		return PaymentMethod{}, false, err
+	}
+	return p, true, nil
+}
+
 func (s *SQLite) ListPaymentMethods(ctx context.Context, userID string) ([]PaymentMethod, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT user_id, method, value, is_default, inserted_at FROM payment_methods

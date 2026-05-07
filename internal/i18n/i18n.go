@@ -62,7 +62,7 @@ var bundles = map[string]map[string]string{
 		LedgerStatusAllEmpty:      "Nobody owes you and you owe nothing.",
 		LedgerStatusAllOwedHeader: "Owed to you:",
 		LedgerStatusAllOweHeader:  "You owe:",
-		LedgerStatusAllLine:       "\n• <@%s> - %s",
+		LedgerStatusAllLine:       "\n- <@%s> - %s",
 
 		PaySaved:          "Saved your `%s`.",
 		PayRemoved:        "Removed your `%s`.",
@@ -72,8 +72,8 @@ var bundles = map[string]map[string]string{
 		PayShowSelfEmpty:  "You haven't added any payment methods yet. Try `@sergeant pay set bank PL61 ...` or `@sergeant pay set blik 555 555 555`.",
 		PayShowForEmpty:   "<@%s> hasn't added any payment methods.",
 
-		PayLine:        "\n• `%s` - %s",
-		PayLineDefault: "\n• `%s` - %s (default)",
+		PayLine:        "\n- `%s` - %s",
+		PayLineDefault: "\n- `%s` - %s (default)",
 
 		PayOpenerText:   "Add a payment method privately",
 		PayOpenerButton: "Open form",
@@ -120,7 +120,7 @@ var bundles = map[string]map[string]string{
 		LedgerStatusAllEmpty:      "Nikt nie ma u Ciebie długu i Ty też nie.",
 		LedgerStatusAllOwedHeader: "Mają u Ciebie dług:",
 		LedgerStatusAllOweHeader:  "Masz dług u:",
-		LedgerStatusAllLine:       "\n• <@%s> - %s",
+		LedgerStatusAllLine:       "\n- <@%s> - %s",
 
 		PaySaved:          "Zapisano `%s`.",
 		PayRemoved:        "Usunięto `%s`.",
@@ -130,8 +130,8 @@ var bundles = map[string]map[string]string{
 		PayShowSelfEmpty:  "Nie masz jeszcze żadnych metod płatności. Spróbuj `@sergeant pay set bank PL61 ...` lub `@sergeant pay set blik 555 555 555`.",
 		PayShowForEmpty:   "<@%s> nie dodał jeszcze żadnych metod płatności.",
 
-		PayLine:        "\n• `%s` - %s",
-		PayLineDefault: "\n• `%s` - %s (default)",
+		PayLine:        "\n- `%s` - %s",
+		PayLineDefault: "\n- `%s` - %s (default)",
 
 		PayOpenerText:   "Dodaj metodę płatności.",
 		PayOpenerButton: "Otwórz formularz.",

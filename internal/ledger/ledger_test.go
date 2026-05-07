@@ -291,6 +291,41 @@ func TestLedger(t *testing.T) {
 		}
 	})
 
+	t.Run("status-all you-owe lines include creditor's default payment method", func(t *testing.T) {
+		l := newLedger(t)
+		ctx := context.Background()
+
+		add(t, l, "C", "A", 1, 3600, "PLN") // A owes C 36.00 PLN
+		add(t, l, "D", "A", 1, 1500, "EUR") // A owes D 15.00 EUR (D has no default)
+
+		_, _ = l.Apply(ctx, "C", parser.Command{Kind: parser.KindPaySet, PayMethod: "blik", PayValue: "555 555 555"})
+		_, _ = l.Apply(ctx, "C", parser.Command{Kind: parser.KindPaySetDefault, PayMethod: "blik"})
+
+		aView, _ := l.Apply(ctx, "A", parser.Command{Kind: parser.KindStatusAll})
+		want := "You owe:\n- <@C> - 36.00 PLN(blik 555 555 555) (just now)\n- <@D> - 15.00 EUR (just now)"
+		if aView.Text != want {
+			t.Errorf("status-all text\n  got:  %q\n  want: %q", aView.Text, want)
+		}
+	})
+
+	t.Run("status-all owed-to-you lines never include payment method", func(t *testing.T) {
+		l := newLedger(t)
+		ctx := context.Background()
+
+		add(t, l, "A", "B", 1, 2000, "PLN") // B owes A
+
+		_, _ = l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySet, PayMethod: "blik", PayValue: "111"})
+		_, _ = l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySetDefault, PayMethod: "blik"})
+		_, _ = l.Apply(ctx, "B", parser.Command{Kind: parser.KindPaySet, PayMethod: "bank", PayValue: "PL61"})
+		_, _ = l.Apply(ctx, "B", parser.Command{Kind: parser.KindPaySetDefault, PayMethod: "bank"})
+
+		aView, _ := l.Apply(ctx, "A", parser.Command{Kind: parser.KindStatusAll})
+		want := "Owed to you:\n- <@B> - 20.00 PLN (just now)"
+		if aView.Text != want {
+			t.Errorf("status-all text\n  got:  %q\n  want: %q", aView.Text, want)
+		}
+	})
+
 	t.Run("status-all empty when no rows on either side", func(t *testing.T) {
 		l := newLedger(t)
 		r, _ := l.Apply(context.Background(), "Z", parser.Command{Kind: parser.KindStatusAll})

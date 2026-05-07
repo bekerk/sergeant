@@ -237,6 +237,36 @@ func TestSQLiteDefaultPaymentMethod(t *testing.T) {
 	}
 }
 
+func TestSQLiteDefaultPaymentMethodLookup(t *testing.T) {
+	ctx := context.Background()
+	s, _ := openTemp(t)
+
+	if _, ok, err := s.DefaultPaymentMethod(ctx, "U1"); err != nil || ok {
+		t.Fatalf("expected (false, nil) for missing user, got ok=%v err=%v", ok, err)
+	}
+
+	if err := s.SetPaymentMethod(ctx, "U1", "bank", "PL61"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetPaymentMethod(ctx, "U1", "blik", "555"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := s.DefaultPaymentMethod(ctx, "U1"); err != nil || ok {
+		t.Fatalf("no default set: ok=%v err=%v", ok, err)
+	}
+
+	if err := s.SetDefaultPaymentMethod(ctx, "U1", "blik"); err != nil {
+		t.Fatal(err)
+	}
+	pm, ok, err := s.DefaultPaymentMethod(ctx, "U1")
+	if err != nil || !ok {
+		t.Fatalf("expected blik as default, got ok=%v err=%v", ok, err)
+	}
+	if pm.Method != "blik" || pm.Value != "555" || !pm.IsDefault {
+		t.Fatalf("unexpected default row: %+v", pm)
+	}
+}
+
 func TestSQLiteMigrateFromV0(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "legacy.db")
