@@ -1,7 +1,6 @@
 package i18n
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -42,8 +41,8 @@ func TestEveryKeyTranslatedInEveryLocale(t *testing.T) {
 
 func TestMissingKeyFallsBackToEnglish(t *testing.T) {
 	tr := &Translator{locale: "pl", msgs: map[string]string{}}
-	if got := tr.T(LedgerStatusAllEmpty); !strings.Contains(got, "Nobody") {
-		t.Fatalf("expected English fallback, got %q", got)
+	if want := "Nobody owes you and you owe nothing."; tr.T(LedgerStatusAllEmpty) != want {
+		t.Fatalf("expected English fallback %q, got %q", want, tr.T(LedgerStatusAllEmpty))
 	}
 }
 

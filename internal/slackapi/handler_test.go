@@ -163,23 +163,23 @@ func TestURLVerification(t *testing.T) {
 }
 
 func TestAppMentionDispatch(t *testing.T) {
+	usageReply := ":cop: " + i18n.New("en").T(i18n.HandlerUsage)
 	tests := []struct {
 		name      string
 		text      string
 		ephemeral bool
-		// substrings the responder text MUST contain
-		wants []string
+		want      string
 		// where the reply must go: thread ts ("123.456") for non-ephemeral,
 		// user ID ("UAAA") for ephemeral
 		target string
 	}{
-		{name: "add", text: "<@USERGEANT> <@UBBB> +20 PLN", ephemeral: false, wants: []string{"<@UBBB>", "20.00 PLN"}, target: "123.456"},
-		{name: "status all", text: "<@USERGEANT> status", ephemeral: false, wants: []string{"Nobody owes you"}, target: "123.456"},
-		{name: "unrecognized", text: "<@USERGEANT> ¿qué?", ephemeral: true, wants: []string{"Tabs"}, target: "UAAA"},
-		{name: "bare mention", text: "<@USERGEANT>", ephemeral: true, wants: []string{"Tabs"}, target: "UAAA"},
-		{name: "bad amount", text: "<@USERGEANT> <@UBBB> +abc", ephemeral: true, wants: []string{"Tabs"}, target: "UAAA"},
-		{name: "bad currency", text: "<@USERGEANT> <@UBBB> +20 PLNS", ephemeral: true, wants: []string{"Tabs"}, target: "UAAA"},
-		{name: "unknown pay subcommand", text: "<@USERGEANT> pay nonsense", ephemeral: true, wants: []string{"Tabs"}, target: "UAAA"},
+		{name: "add", text: "<@USERGEANT> <@UBBB> +20 PLN", ephemeral: false, want: ":cop: <@UBBB> now owes you 20.00 PLN.", target: "123.456"},
+		{name: "status all", text: "<@USERGEANT> status", ephemeral: false, want: ":cop: Nobody owes you and you owe nothing.", target: "123.456"},
+		{name: "unrecognized", text: "<@USERGEANT> ¿qué?", ephemeral: true, want: usageReply, target: "UAAA"},
+		{name: "bare mention", text: "<@USERGEANT>", ephemeral: true, want: usageReply, target: "UAAA"},
+		{name: "bad amount", text: "<@USERGEANT> <@UBBB> +abc", ephemeral: true, want: usageReply, target: "UAAA"},
+		{name: "bad currency", text: "<@USERGEANT> <@UBBB> +20 PLNS", ephemeral: true, want: usageReply, target: "UAAA"},
+		{name: "unknown pay subcommand", text: "<@USERGEANT> pay nonsense", ephemeral: true, want: usageReply, target: "UAAA"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -196,10 +196,8 @@ func TestAppMentionDispatch(t *testing.T) {
 			if p.target != tc.target {
 				t.Errorf("target=%q, want %q", p.target, tc.target)
 			}
-			for _, w := range tc.wants {
-				if !strings.Contains(p.text, w) {
-					t.Errorf("text=%q missing %q", p.text, w)
-				}
+			if p.text != tc.want {
+				t.Errorf("text:\n  got:  %q\n  want: %q", p.text, tc.want)
 			}
 		})
 	}
@@ -240,8 +238,8 @@ func TestAppMentionWritesToLedger(t *testing.T) {
 	sp.wait(t)
 
 	r, _ := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
-	if !strings.Contains(r.Text, "20.00 PLN") {
-		t.Fatalf("ledger view: %q", r.Text)
+	if want := "<@UBBB> owes you 20.00 PLN (just now)."; r.Text != want {
+		t.Fatalf("ledger view: got %q, want %q", r.Text, want)
 	}
 }
 
@@ -269,8 +267,8 @@ func TestPaySetFormPostsOpenerButton(t *testing.T) {
 	if !p.ephemeral {
 		t.Errorf("opener should be ephemeral")
 	}
-	if !strings.Contains(p.text, "Add a payment method") {
-		t.Errorf("text=%q missing fallback", p.text)
+	if want := "Add a payment method privately"; p.text != want {
+		t.Errorf("text: got %q, want %q", p.text, want)
 	}
 }
 
@@ -340,20 +338,28 @@ func TestViewSubmissionStoresAndConfirms(t *testing.T) {
 	}
 
 	// Confirmation arrives by updating the modal in-place.
-	var resp map[string]any
+	var resp struct {
+		ResponseAction string `json:"response_action"`
+		View           struct {
+			Blocks []struct {
+				Type string `json:"type"`
+				Text struct {
+					Text string `json:"text"`
+				} `json:"text"`
+			} `json:"blocks"`
+		} `json:"view"`
+	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("body not JSON: %s", rec.Body.String())
 	}
-	if resp["response_action"] != "update" {
-		t.Fatalf("response_action = %v, want update", resp["response_action"])
+	if resp.ResponseAction != "update" {
+		t.Fatalf("response_action = %q, want update", resp.ResponseAction)
 	}
-	view, ok := resp["view"].(map[string]any)
-	if !ok {
-		t.Fatalf("view missing: %+v", resp)
+	if len(resp.View.Blocks) == 0 {
+		t.Fatalf("update view has no blocks: %s", rec.Body.String())
 	}
-	rendered, _ := json.Marshal(view)
-	if !strings.Contains(string(rendered), "bank") {
-		t.Errorf("update view missing method: %s", rendered)
+	if want := "Saved your `bank`."; resp.View.Blocks[0].Text.Text != want {
+		t.Errorf("update view body: got %q, want %q", resp.View.Blocks[0].Text.Text, want)
 	}
 
 	// Confirm the row was actually written.
@@ -361,10 +367,8 @@ func TestViewSubmissionStoresAndConfirms(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"bank", "PL61 1090 0000"} {
-		if !strings.Contains(pms.Text, want) {
-			t.Errorf("ledger view %q missing %q", pms.Text, want)
-		}
+	if want := "<@UAAA> :money_with_wings: \n- `bank` - PL61 1090 0000"; pms.Text != want {
+		t.Errorf("ledger view: got %q, want %q", pms.Text, want)
 	}
 }
 
@@ -415,14 +419,12 @@ func TestAppMentionPaySetInline(t *testing.T) {
 	if p.ephemeral {
 		t.Error("pay set reply should not be ephemeral")
 	}
-	if !strings.Contains(p.text, "bank") {
-		t.Errorf("text=%q missing method", p.text)
+	if want := ":cop: Saved your `bank`."; p.text != want {
+		t.Errorf("text: got %q, want %q", p.text, want)
 	}
 	r, _ := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindPayShowSelf})
-	for _, want := range []string{"bank", "PL61 1090 0000 1234"} {
-		if !strings.Contains(r.Text, want) {
-			t.Errorf("ledger view %q missing %q", r.Text, want)
-		}
+	if want := "<@UAAA> :money_with_wings: \n- `bank` - PL61 1090 0000 1234"; r.Text != want {
+		t.Errorf("ledger view: got %q, want %q", r.Text, want)
 	}
 }
 
@@ -438,8 +440,9 @@ func TestAppMentionPayRemove(t *testing.T) {
 	}
 	sp.wait(t)
 	r, _ := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindPayShowSelf})
-	if !strings.Contains(r.Text, "haven't added") {
-		t.Errorf("payment methods should be empty, got %q", r.Text)
+	want := "You haven't added any payment methods yet. Try `@sergeant pay set bank PL61 ...` or `@sergeant pay set blik 555 555 555`."
+	if r.Text != want {
+		t.Errorf("payment methods should be empty: got %q, want %q", r.Text, want)
 	}
 }
 
@@ -457,8 +460,9 @@ func TestAppMentionPayClear(t *testing.T) {
 	}
 	sp.wait(t)
 	r, _ := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindPayShowSelf})
-	if !strings.Contains(r.Text, "haven't added") {
-		t.Errorf("expected empty payment list, got %q", r.Text)
+	want := "You haven't added any payment methods yet. Try `@sergeant pay set bank PL61 ...` or `@sergeant pay set blik 555 555 555`."
+	if r.Text != want {
+		t.Errorf("expected empty payment list: got %q, want %q", r.Text, want)
 	}
 }
 
@@ -478,8 +482,8 @@ func TestAppMentionReset(t *testing.T) {
 	}
 	sp.wait(t)
 	r, _ := l.Apply(ctx, "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
-	if !strings.Contains(r.Text, "nothing") {
-		t.Errorf("both currencies should be cleared, got %q", r.Text)
+	if want := "<@UBBB> owes you nothing."; r.Text != want {
+		t.Errorf("both currencies should be cleared: got %q, want %q", r.Text, want)
 	}
 }
 
@@ -499,11 +503,8 @@ func TestAppMentionResetCurrency(t *testing.T) {
 	}
 	sp.wait(t)
 	r, _ := l.Apply(ctx, "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
-	if strings.Contains(r.Text, "PLN") {
-		t.Errorf("PLN should be cleared, got %q", r.Text)
-	}
-	if !strings.Contains(r.Text, "10.00 EUR") {
-		t.Errorf("EUR should remain, got %q", r.Text)
+	if want := "<@UBBB> owes you 10.00 EUR (just now)."; r.Text != want {
+		t.Errorf("EUR should remain, PLN cleared: got %q, want %q", r.Text, want)
 	}
 }
 
@@ -607,12 +608,12 @@ func TestDirectMessageDispatch(t *testing.T) {
 	if p.ephemeral {
 		t.Errorf("DM reply should not be ephemeral")
 	}
-	if !strings.Contains(p.text, "20.00 PLN") {
-		t.Errorf("text=%q missing amount", p.text)
+	if want := ":cop: <@UBBB> now owes you 20.00 PLN."; p.text != want {
+		t.Errorf("text: got %q, want %q", p.text, want)
 	}
 	r, _ := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
-	if !strings.Contains(r.Text, "20.00 PLN") {
-		t.Fatalf("ledger view: %q", r.Text)
+	if want := "<@UBBB> owes you 20.00 PLN (just now)."; r.Text != want {
+		t.Fatalf("ledger view: got %q, want %q", r.Text, want)
 	}
 }
 
