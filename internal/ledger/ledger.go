@@ -74,11 +74,11 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 		if err != nil {
 			return Reply{}, err
 		}
-		
+
 		if len(rows) == 0 && len(reverseRows) == 0 {
 			return Reply{Text: l.t.T(i18n.LedgerStatusForEmpty, c.Target)}, nil
 		}
-		
+
 		// Build net amounts per currency
 		netAmounts := make(map[string]int64)
 		for _, r := range rows {
@@ -87,7 +87,7 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 		for _, r := range reverseRows {
 			netAmounts[r.Currency] -= r.AmountMinor
 		}
-		
+
 		// Convert to display format
 		var displayDebts []store.Debt
 		for currency, amount := range netAmounts {
@@ -100,7 +100,7 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 				})
 			}
 		}
-		
+
 		if len(displayDebts) == 0 {
 			return Reply{Text: l.t.T(i18n.LedgerStatusForEmpty, c.Target)}, nil
 		}
@@ -250,41 +250,6 @@ func joinNetAmounts(rows []store.NetDebt, tr *i18n.Translator, pay *store.Paymen
 			parts[i] = fmt.Sprintf("%s %s (`%s %s`)", amount, r.Currency, pay.Method, pay.Value)
 		} else {
 			parts[i] = fmt.Sprintf("%s %s", amount, r.Currency)
-		}
-	}
-	return strings.Join(parts, ", ")
-}
-
-func writeGroupedLines(b *strings.Builder, t *i18n.Translator, now int64, rows []store.Debt, key func(store.Debt) string, payByKey map[string]*store.PaymentMethod) {
-	var lastKey string
-	var group []store.Debt
-	flush := func() {
-		if len(group) == 0 {
-			return
-		}
-		b.WriteString(t.T(i18n.LedgerStatusAllLine, lastKey, joinAmounts(group, t, now, payByKey[lastKey])))
-	}
-	for _, r := range rows {
-		k := key(r)
-		if k != lastKey {
-			flush()
-			lastKey = k
-			group = group[:0]
-		}
-		group = append(group, r)
-	}
-	flush()
-}
-
-func joinAmounts(rows []store.Debt, t *i18n.Translator, now int64, pay *store.PaymentMethod) string {
-	parts := make([]string, len(rows))
-	for i, r := range rows {
-		amount := formatMinor(r.AmountMinor)
-		since := t.Since(now, r.InsertedAt)
-		if pay != nil {
-			parts[i] = fmt.Sprintf("%s %s (`%s %s`) (%s)", amount, r.Currency, pay.Method, pay.Value, since)
-		} else {
-			parts[i] = fmt.Sprintf("%s %s (%s)", amount, r.Currency, since)
 		}
 	}
 	return strings.Join(parts, ", ")

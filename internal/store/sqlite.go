@@ -305,7 +305,7 @@ func (s *SQLite) ListPaymentMethods(ctx context.Context, userID string) ([]Payme
 // Negative = 'debtor' owes money to 'creditor' (reverse direction).
 func (s *SQLite) GetNetDebt(ctx context.Context, creditor, debtor, currency string) (int64, error) {
 	var forward, backward int64
-	
+
 	// A→B (creditor is owed by debtor)
 	err := s.db.QueryRowContext(ctx,
 		`SELECT COALESCE(amount_minor, 0) FROM debts WHERE creditor_id=? AND debtor_id=? AND currency=?`,
@@ -314,7 +314,7 @@ func (s *SQLite) GetNetDebt(ctx context.Context, creditor, debtor, currency stri
 	if err != nil && err != sql.ErrNoRows {
 		return 0, err
 	}
-	
+
 	// B→A (debtor is owed by creditor - reverse)
 	err = s.db.QueryRowContext(ctx,
 		`SELECT COALESCE(amount_minor, 0) FROM debts WHERE creditor_id=? AND debtor_id=? AND currency=?`,
@@ -323,7 +323,7 @@ func (s *SQLite) GetNetDebt(ctx context.Context, creditor, debtor, currency stri
 	if err != nil && err != sql.ErrNoRows {
 		return 0, err
 	}
-	
+
 	return forward - backward, nil
 }
 
@@ -331,8 +331,8 @@ func (s *SQLite) GetNetDebt(ctx context.Context, creditor, debtor, currency stri
 type NetDebt struct {
 	OtherUser   string // the other person in the transaction
 	Currency    string
-	AmountMinor int64  // positive = user is creditor, negative = user is debtor
-	IsCreditor  bool   // true if user should receive money
+	AmountMinor int64 // positive = user is creditor, negative = user is debtor
+	IsCreditor  bool  // true if user should receive money
 }
 
 // ListNormalized returns simplified debts for a user.
@@ -351,29 +351,29 @@ func (s *SQLite) ListNormalized(ctx context.Context, userID string) (owed []NetD
 		return nil, nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	
+
 	for rows.Next() {
 		var otherUser, currency string
 		if err := rows.Scan(&otherUser, &currency); err != nil {
 			return nil, nil, err
 		}
-		
+
 		net, err := s.GetNetDebt(ctx, userID, otherUser, currency)
 		if err != nil {
 			return nil, nil, err
 		}
-		
+
 		if net == 0 {
 			continue // debts cancel out
 		}
-		
+
 		nd := NetDebt{
 			OtherUser:   otherUser,
 			Currency:    currency,
 			AmountMinor: net,
 			IsCreditor:  net > 0,
 		}
-		
+
 		if net > 0 {
 			owed = append(owed, nd)
 		} else {
@@ -382,7 +382,7 @@ func (s *SQLite) ListNormalized(ctx context.Context, userID string) (owed []NetD
 			owe = append(owe, nd)
 		}
 	}
-	
+
 	return owed, owe, rows.Err()
 }
 
