@@ -159,8 +159,82 @@ func (s *SQLite) AddDelta(ctx context.Context, creditor, debtor, currency string
 
 func (s *SQLite) ResetPair(ctx context.Context, creditor, debtor string) error {
 	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM debts WHERE creditor_id=? AND debtor_id=?`, creditor, debtor)
+		`DELETE FROM debts WHERE (creditor_id=? AND debtor_id=?) OR (creditor_id=? AND debtor_id=?)`,
+		creditor, debtor, debtor, creditor)
 	return err
+}
+
+// AddDeltaWithSimplifiedDebt applies delta and stores only the net result.
+// If A owes B 20 PLN and B adds debt 15 PLN to A, result is A owes B 5 PLN.
+// Returns the net amount (positive = creditor is owed, 0 = settled, negative = creditor owes).
+func (s *SQLite) AddDeltaWithSimplifiedDebt(ctx context.Context, creditor, debtor, currency string, delta int64) (int64, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	now := time.Now().Unix()
+
+	// Get existing debt in FORWARD direction (creditor -> debtor)
+	var forward int64
+	err = tx.QueryRowContext(ctx,
+		`SELECT COALESCE(amount_minor, 0) FROM debts WHERE creditor_id=? AND debtor_id=? AND currency=?`,
+		creditor, debtor, currency,
+	).Scan(&forward)
+	if err != nil && err != sql.ErrNoRows {
+		return 0, err
+	}
+
+	// Get existing debt in REVERSE direction (debtor -> creditor)
+	var reverse int64
+	err = tx.QueryRowContext(ctx,
+		`SELECT COALESCE(amount_minor, 0) FROM debts WHERE creditor_id=? AND debtor_id=? AND currency=?`,
+		debtor, creditor, currency,
+	).Scan(&reverse)
+	if err != nil && err != sql.ErrNoRows {
+		return 0, err
+	}
+
+	// Calculate net: what creditor is owed minus what they owe
+	net := forward - reverse + delta
+
+	// Delete both directions (clean slate)
+	_, err = tx.ExecContext(ctx,
+		`DELETE FROM debts WHERE ((creditor_id=? AND debtor_id=?) OR (creditor_id=? AND debtor_id=?)) AND currency=?`,
+		creditor, debtor, debtor, creditor, currency,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	// Insert only the net result (if non-zero)
+	if net > 0 {
+		// Creditor is owed by debtor
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO debts(creditor_id, debtor_id, currency, amount_minor, inserted_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			creditor, debtor, currency, net, now, now,
+		)
+		if err != nil {
+			return 0, err
+		}
+		return net, tx.Commit()
+	} else if net < 0 {
+		// Debtor is owed by creditor (reverse direction)
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO debts(creditor_id, debtor_id, currency, amount_minor, inserted_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			debtor, creditor, currency, -net, now, now,
+		)
+		if err != nil {
+			return 0, err
+		}
+		return net, tx.Commit()
+	}
+
+	// net == 0, fully settled
+	return 0, tx.Commit()
 }
 
 func (s *SQLite) ResetPairCurrency(ctx context.Context, creditor, debtor, currency string) error {

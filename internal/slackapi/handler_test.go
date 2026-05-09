@@ -238,7 +238,7 @@ func TestAppMentionWritesToLedger(t *testing.T) {
 	sp.wait(t)
 
 	r, _ := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
-	if want := "<@UBBB> owes you 20.00 PLN (just now)."; r.Text != want {
+	if want := "<@UBBB> owes you 20.00 PLN."; r.Text != want {
 		t.Fatalf("ledger view: got %q, want %q", r.Text, want)
 	}
 }
@@ -503,7 +503,7 @@ func TestAppMentionResetCurrency(t *testing.T) {
 	}
 	sp.wait(t)
 	r, _ := l.Apply(ctx, "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
-	if want := "<@UBBB> owes you 10.00 EUR (just now)."; r.Text != want {
+	if want := "<@UBBB> owes you 10.00 EUR."; r.Text != want {
 		t.Errorf("EUR should remain, PLN cleared: got %q, want %q", r.Text, want)
 	}
 }
@@ -612,7 +612,7 @@ func TestDirectMessageDispatch(t *testing.T) {
 		t.Errorf("text: got %q, want %q", p.text, want)
 	}
 	r, _ := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
-	if want := "<@UBBB> owes you 20.00 PLN (just now)."; r.Text != want {
+	if want := "<@UBBB> owes you 20.00 PLN."; r.Text != want {
 		t.Fatalf("ledger view: got %q, want %q", r.Text, want)
 	}
 }

@@ -9,6 +9,7 @@ const DefaultLocale = "en"
 
 const (
 	LedgerNowOwes             = "ledger.now_owes"               // args: target, amount, currency
+	LedgerYouOwe              = "ledger.you_owe"                // args: target, amount, currency
 	LedgerTabCleared          = "ledger.tab_cleared"            // args: target, currency
 	LedgerResetAll            = "ledger.reset_all"              // args: target
 	LedgerResetCurrency       = "ledger.reset_currency"         // args: target, currency
@@ -54,6 +55,7 @@ const (
 var bundles = map[string]map[string]string{
 	"en": {
 		LedgerNowOwes:             "<@%s> now owes you %s %s.",
+		LedgerYouOwe:              "You now owe <@%s> %s %s.",
 		LedgerTabCleared:          "Tab cleared: <@%s> owes you nothing in %s.",
 		LedgerResetAll:            "Cleared <@%s>'s tab with you.",
 		LedgerResetCurrency:       "Cleared <@%s>'s %s tab with you.",
@@ -112,6 +114,7 @@ var bundles = map[string]map[string]string{
 	},
 	"pl": {
 		LedgerNowOwes:             "<@%s> jest tobie winny %s %s.",
+		LedgerYouOwe:              "Jesteś winny <@%s> %s %s.",
 		LedgerTabCleared:          "Wyzerowano: <@%s> nie ma u Ciebie długu w %s.",
 		LedgerResetAll:            "Wyzerowano rachunek <@%s>.",
 		LedgerResetCurrency:       "Wyzerowano rachunek <@%s> w %s.",

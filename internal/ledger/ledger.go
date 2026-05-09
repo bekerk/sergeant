@@ -39,14 +39,18 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 		if ccy == "" {
 			ccy = l.defaultCurrency
 		}
-		after, err := l.store.AddDelta(ctx, creditor, c.Target, ccy, c.Minor*int64(c.Sign))
+		// Use simplified debt storage - net calculation happens at write time
+		net, err := l.store.AddDeltaWithSimplifiedDebt(ctx, creditor, c.Target, ccy, c.Minor*int64(c.Sign))
 		if err != nil {
 			return Reply{}, err
 		}
-		if after == 0 {
+		if net == 0 {
 			return Reply{Text: l.t.T(i18n.LedgerTabCleared, c.Target, ccy)}, nil
 		}
-		return Reply{Text: l.t.T(i18n.LedgerNowOwes, c.Target, formatMinor(after), ccy)}, nil
+		if net > 0 {
+			return Reply{Text: l.t.T(i18n.LedgerNowOwes, c.Target, formatMinor(net), ccy)}, nil
+		}
+		return Reply{Text: l.t.T(i18n.LedgerYouOwe, c.Target, formatMinor(-net), ccy)}, nil
 
 	case parser.KindReset:
 		if c.Target == creditor {
@@ -205,11 +209,10 @@ func joinAmounts(rows []store.Debt, t *i18n.Translator, now int64, pay *store.Pa
 	parts := make([]string, len(rows))
 	for i, r := range rows {
 		amount := formatMinor(r.AmountMinor)
-		since := t.Since(now, r.InsertedAt)
 		if pay != nil {
-			parts[i] = fmt.Sprintf("%s %s (`%s %s`) (%s)", amount, r.Currency, pay.Method, pay.Value, since)
+			parts[i] = fmt.Sprintf("%s %s (`%s %s`)", amount, r.Currency, pay.Method, pay.Value)
 		} else {
-			parts[i] = fmt.Sprintf("%s %s (%s)", amount, r.Currency, since)
+			parts[i] = fmt.Sprintf("%s %s", amount, r.Currency)
 		}
 	}
 	return strings.Join(parts, ", ")

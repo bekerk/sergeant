@@ -48,7 +48,9 @@ func TestLedger(t *testing.T) {
 		l := newLedger(t)
 		add(t, l, "A", "B", 1, 1000, "PLN")
 		r := add(t, l, "A", "B", -1, 9999, "PLN")
-		if want := "Tab cleared: <@B> owes you nothing in PLN."; r.Text != want {
+		// With debt simplification, subtracting more than exists creates reverse debt
+		// 10.00 - 99.99 = -89.99, so A now owes B 89.99 PLN
+		if want := "You now owe <@B> 89.99 PLN."; r.Text != want {
 			t.Fatalf("got %q, want %q", r.Text, want)
 		}
 	})
@@ -99,26 +101,26 @@ func TestLedger(t *testing.T) {
 		add(t, l, "A", "B", 1, 2000, "PLN")
 		add(t, l, "A", "B", 1, 500, "EUR")
 		r, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindStatusFor, Target: "B"})
-		if want := "<@B> owes you 5.00 EUR (just now), 20.00 PLN (just now)."; r.Text != want {
+		if want := "<@B> owes you 5.00 EUR, 20.00 PLN."; r.Text != want {
 			t.Fatalf("got %q, want %q", r.Text, want)
 		}
 	})
 
-	t.Run("status output includes since-phrase per amount", func(t *testing.T) {
+	t.Run("status output includes amounts only", func(t *testing.T) {
 		l := newLedger(t)
 		add(t, l, "A", "B", 1, 2000, "PLN")
 		add(t, l, "A", "B", 1, 500, "EUR")
 		r, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindStatusFor, Target: "B"})
-		if want := "<@B> owes you 5.00 EUR (just now), 20.00 PLN (just now)."; r.Text != want {
+		if want := "<@B> owes you 5.00 EUR, 20.00 PLN."; r.Text != want {
 			t.Errorf("got %q, want %q", r.Text, want)
 		}
 	})
 
-	t.Run("status output includes since-phrase in polish", func(t *testing.T) {
+	t.Run("status output in polish without timestamps", func(t *testing.T) {
 		l := newLedgerLocale(t, "pl")
 		add(t, l, "A", "B", 1, 2000, "PLN")
 		r, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindStatusAll})
-		if want := "Mają u Ciebie dług:\n- <@B> - 20.00 PLN (przed chwilą)"; r.Text != want {
+		if want := "Mają u Ciebie dług:\n- <@B> - 20.00 PLN"; r.Text != want {
 			t.Errorf("got %q, want %q", r.Text, want)
 		}
 	})
@@ -131,7 +133,7 @@ func TestLedger(t *testing.T) {
 		}
 		// status-all populated
 		all, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindStatusAll})
-		if want := "Mają u Ciebie dług:\n- <@B> - 20.00 PLN (przed chwilą)"; all.Text != want {
+		if want := "Mają u Ciebie dług:\n- <@B> - 20.00 PLN"; all.Text != want {
 			t.Fatalf("polish status-all: got %q, want %q", all.Text, want)
 		}
 		// reset clears, status-all empty changes phrasing too
@@ -251,7 +253,7 @@ func TestLedger(t *testing.T) {
 		add(t, l, "A", "C", 1, 100, "PLN")
 		// B's view should show only what A booked (against B), under "You owe".
 		bView, _ := l.Apply(context.Background(), "B", parser.Command{Kind: parser.KindStatusAll})
-		wantB := "You owe:\n- <@A> - 5.00 EUR (just now), 20.00 PLN (just now)"
+		wantB := "You owe:\n- <@A> - 5.00 EUR, 20.00 PLN"
 		if bView.Text != wantB {
 			t.Fatalf("B view: got %q, want %q", bView.Text, wantB)
 		}
@@ -259,7 +261,7 @@ func TestLedger(t *testing.T) {
 		if aView.Ephemeral {
 			t.Fatal("status-all should not be ephemeral")
 		}
-		wantA := "Owed to you:\n- <@B> - 5.00 EUR (just now), 20.00 PLN (just now)\n- <@C> - 1.00 PLN (just now)"
+		wantA := "Owed to you:\n- <@B> - 5.00 EUR, 20.00 PLN\n- <@C> - 1.00 PLN"
 		if aView.Text != wantA {
 			t.Fatalf("A view: got %q, want %q", aView.Text, wantA)
 		}
@@ -271,7 +273,7 @@ func TestLedger(t *testing.T) {
 		add(t, l, "C", "A", 1, 1500, "EUR") // A owes C
 		add(t, l, "D", "A", 1, 700, "PLN")  // A owes D
 		aView, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindStatusAll})
-		want := "Owed to you:\n- <@B> - 20.00 PLN (just now)\nYou owe:\n- <@C> - 15.00 EUR (just now)\n- <@D> - 7.00 PLN (just now)"
+		want := "Owed to you:\n- <@B> - 20.00 PLN\nYou owe:\n- <@C> - 15.00 EUR\n- <@D> - 7.00 PLN"
 		if aView.Text != want {
 			t.Errorf("got %q, want %q", aView.Text, want)
 		}
@@ -288,7 +290,7 @@ func TestLedger(t *testing.T) {
 		_, _ = l.Apply(ctx, "C", parser.Command{Kind: parser.KindPaySetDefault, PayMethod: "blik"})
 
 		aView, _ := l.Apply(ctx, "A", parser.Command{Kind: parser.KindStatusAll})
-		want := "You owe:\n- <@C> - 36.00 PLN (`blik 555 555 555`) (just now)\n- <@D> - 15.00 EUR (just now)"
+		want := "You owe:\n- <@C> - 36.00 PLN (`blik 555 555 555`)\n- <@D> - 15.00 EUR"
 		if aView.Text != want {
 			t.Errorf("status-all text\n  got:  %q\n  want: %q", aView.Text, want)
 		}
@@ -306,7 +308,7 @@ func TestLedger(t *testing.T) {
 		_, _ = l.Apply(ctx, "B", parser.Command{Kind: parser.KindPaySetDefault, PayMethod: "bank"})
 
 		aView, _ := l.Apply(ctx, "A", parser.Command{Kind: parser.KindStatusAll})
-		want := "Owed to you:\n- <@B> - 20.00 PLN (just now)"
+		want := "Owed to you:\n- <@B> - 20.00 PLN"
 		if aView.Text != want {
 			t.Errorf("status-all text\n  got:  %q\n  want: %q", aView.Text, want)
 		}
@@ -317,6 +319,69 @@ func TestLedger(t *testing.T) {
 		r, _ := l.Apply(context.Background(), "Z", parser.Command{Kind: parser.KindStatusAll})
 		if want := "Nobody owes you and you owe nothing."; r.Text != want {
 			t.Fatalf("got %q, want %q", r.Text, want)
+		}
+	})
+
+	t.Run("net debt simplification - bidirectional debts cancel out", func(t *testing.T) {
+		l := newLedger(t)
+		// Adam is creditor: Kamil owes Adam 15 PLN
+		add(t, l, "Adam", "Kamil", 1, 1500, "PLN")
+		// Kamil is creditor: Adam owes Kamil 30 PLN
+		add(t, l, "Kamil", "Adam", 1, 3000, "PLN")
+
+		// From Adam's view: net = 15 - 30 = -15, so Adam owes Kamil 15 PLN
+		adamView, _ := l.Apply(context.Background(), "Adam", parser.Command{Kind: parser.KindStatusAll})
+		wantAdam := "You owe:\n- <@Kamil> - 15.00 PLN"
+		if adamView.Text != wantAdam {
+			t.Fatalf("Adam view: got %q, want %q", adamView.Text, wantAdam)
+		}
+
+		// From Kamil's view: net = 30 - 15 = 15, so Kamil is owed 15 PLN
+		kamilView, _ := l.Apply(context.Background(), "Kamil", parser.Command{Kind: parser.KindStatusAll})
+		wantKamil := "Owed to you:\n- <@Adam> - 15.00 PLN"
+		if kamilView.Text != wantKamil {
+			t.Fatalf("Kamil view: got %q, want %q", kamilView.Text, wantKamil)
+		}
+	})
+
+	t.Run("net debt simplification - exact cancel shows empty", func(t *testing.T) {
+		l := newLedger(t)
+		add(t, l, "A", "B", 1, 2000, "PLN")
+		add(t, l, "B", "A", 1, 2000, "PLN")
+
+		r, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindStatusAll})
+		if want := "Nobody owes you and you owe nothing."; r.Text != want {
+			t.Fatalf("got %q, want %q", r.Text, want)
+		}
+	})
+
+	t.Run("reset clears both directions", func(t *testing.T) {
+		l := newLedger(t)
+		add(t, l, "A", "B", 1, 2000, "PLN")
+		add(t, l, "B", "A", 1, 1000, "PLN")
+
+		// Before reset: net = 10 PLN owed to A
+		r1, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindStatusFor, Target: "B"})
+		if want := "<@B> owes you 10.00 PLN."; r1.Text != want {
+			t.Fatalf("before reset: got %q, want %q", r1.Text, want)
+		}
+
+		// Reset from A's side should clear both directions
+		_, err := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindReset, Target: "B"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// After reset: both directions cleared
+		r2, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindStatusFor, Target: "B"})
+		if want := "<@B> owes you nothing."; r2.Text != want {
+			t.Fatalf("after reset: got %q, want %q", r2.Text, want)
+		}
+
+		// B's view should also be empty
+		r3, _ := l.Apply(context.Background(), "B", parser.Command{Kind: parser.KindStatusFor, Target: "A"})
+		if want := "<@A> owes you nothing."; r3.Text != want {
+			t.Fatalf("B view after reset: got %q, want %q", r3.Text, want)
 		}
 	})
 }
