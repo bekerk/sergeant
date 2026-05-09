@@ -48,7 +48,9 @@ func TestLedger(t *testing.T) {
 		l := newLedger(t)
 		add(t, l, "A", "B", 1, 1000, "PLN")
 		r := add(t, l, "A", "B", -1, 9999, "PLN")
-		if want := "Tab cleared: <@B> owes you nothing in PLN."; r.Text != want {
+		// With debt simplification, subtracting more than exists creates reverse debt
+		// 10.00 - 99.99 = -89.99, so A now owes B 89.99 PLN
+		if want := "You now owe <@B> 89.99 PLN."; r.Text != want {
 			t.Fatalf("got %q, want %q", r.Text, want)
 		}
 	})

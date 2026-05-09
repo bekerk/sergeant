@@ -164,6 +164,79 @@ func (s *SQLite) ResetPair(ctx context.Context, creditor, debtor string) error {
 	return err
 }
 
+// AddDeltaWithSimplifiedDebt applies delta and stores only the net result.
+// If A owes B 20 PLN and B adds debt 15 PLN to A, result is A owes B 5 PLN.
+// Returns the net amount (positive = creditor is owed, 0 = settled, negative = creditor owes).
+func (s *SQLite) AddDeltaWithSimplifiedDebt(ctx context.Context, creditor, debtor, currency string, delta int64) (int64, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	now := time.Now().Unix()
+
+	// Get existing debt in FORWARD direction (creditor -> debtor)
+	var forward int64
+	err = tx.QueryRowContext(ctx,
+		`SELECT COALESCE(amount_minor, 0) FROM debts WHERE creditor_id=? AND debtor_id=? AND currency=?`,
+		creditor, debtor, currency,
+	).Scan(&forward)
+	if err != nil && err != sql.ErrNoRows {
+		return 0, err
+	}
+
+	// Get existing debt in REVERSE direction (debtor -> creditor)
+	var reverse int64
+	err = tx.QueryRowContext(ctx,
+		`SELECT COALESCE(amount_minor, 0) FROM debts WHERE creditor_id=? AND debtor_id=? AND currency=?`,
+		debtor, creditor, currency,
+	).Scan(&reverse)
+	if err != nil && err != sql.ErrNoRows {
+		return 0, err
+	}
+
+	// Calculate net: what creditor is owed minus what they owe
+	net := forward - reverse + delta
+
+	// Delete both directions (clean slate)
+	_, err = tx.ExecContext(ctx,
+		`DELETE FROM debts WHERE ((creditor_id=? AND debtor_id=?) OR (creditor_id=? AND debtor_id=?)) AND currency=?`,
+		creditor, debtor, debtor, creditor, currency,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	// Insert only the net result (if non-zero)
+	if net > 0 {
+		// Creditor is owed by debtor
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO debts(creditor_id, debtor_id, currency, amount_minor, inserted_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			creditor, debtor, currency, net, now, now,
+		)
+		if err != nil {
+			return 0, err
+		}
+		return net, tx.Commit()
+	} else if net < 0 {
+		// Debtor is owed by creditor (reverse direction)
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO debts(creditor_id, debtor_id, currency, amount_minor, inserted_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			debtor, creditor, currency, -net, now, now,
+		)
+		if err != nil {
+			return 0, err
+		}
+		return net, tx.Commit()
+	}
+
+	// net == 0, fully settled
+	return 0, tx.Commit()
+}
+
 func (s *SQLite) ResetPairCurrency(ctx context.Context, creditor, debtor, currency string) error {
 	_, err := s.db.ExecContext(ctx,
 		`DELETE FROM debts WHERE creditor_id=? AND debtor_id=? AND currency=?`,
@@ -295,96 +368,6 @@ func (s *SQLite) ListPaymentMethods(ctx context.Context, userID string) ([]Payme
 /*
  * Helpers
  */
-
-/*
- * Net debt calculation (bidirectional debt simplification)
- */
-
-// GetNetDebt returns the net amount between two users in a given currency.
-// Positive = 'creditor' is owed money by 'debtor'.
-// Negative = 'debtor' owes money to 'creditor' (reverse direction).
-func (s *SQLite) GetNetDebt(ctx context.Context, creditor, debtor, currency string) (int64, error) {
-	var forward, backward int64
-
-	// A→B (creditor is owed by debtor)
-	err := s.db.QueryRowContext(ctx,
-		`SELECT COALESCE(amount_minor, 0) FROM debts WHERE creditor_id=? AND debtor_id=? AND currency=?`,
-		creditor, debtor, currency,
-	).Scan(&forward)
-	if err != nil && err != sql.ErrNoRows {
-		return 0, err
-	}
-
-	// B→A (debtor is owed by creditor - reverse)
-	err = s.db.QueryRowContext(ctx,
-		`SELECT COALESCE(amount_minor, 0) FROM debts WHERE creditor_id=? AND debtor_id=? AND currency=?`,
-		debtor, creditor, currency,
-	).Scan(&backward)
-	if err != nil && err != sql.ErrNoRows {
-		return 0, err
-	}
-
-	return forward - backward, nil
-}
-
-// NetDebt represents a simplified debt with net amount.
-type NetDebt struct {
-	OtherUser   string // the other person in the transaction
-	Currency    string
-	AmountMinor int64 // positive = user is creditor, negative = user is debtor
-	IsCreditor  bool  // true if user should receive money
-}
-
-// ListNormalized returns simplified debts for a user.
-// For each currency and counterparty, returns a single net amount.
-func (s *SQLite) ListNormalized(ctx context.Context, userID string) (owed []NetDebt, owe []NetDebt, err error) {
-	// Get all unique counterparties and currencies where user is involved
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT DISTINCT 
-			CASE WHEN creditor_id = ? THEN debtor_id ELSE creditor_id END as other_user,
-			currency
-		FROM debts
-		WHERE creditor_id = ? OR debtor_id = ?
-		ORDER BY other_user, currency
-	`, userID, userID, userID)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	for rows.Next() {
-		var otherUser, currency string
-		if err := rows.Scan(&otherUser, &currency); err != nil {
-			return nil, nil, err
-		}
-
-		net, err := s.GetNetDebt(ctx, userID, otherUser, currency)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if net == 0 {
-			continue // debts cancel out
-		}
-
-		nd := NetDebt{
-			OtherUser:   otherUser,
-			Currency:    currency,
-			AmountMinor: net,
-			IsCreditor:  net > 0,
-		}
-
-		if net > 0 {
-			owed = append(owed, nd)
-		} else {
-			// Store absolute amount for display
-			nd.AmountMinor = -net
-			owe = append(owe, nd)
-		}
-	}
-
-	return owed, owe, rows.Err()
-}
 
 func (s *SQLite) query(ctx context.Context, q string, args ...any) ([]Debt, error) {
 	rows, err := s.db.QueryContext(ctx, q, args...)

@@ -39,14 +39,18 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 		if ccy == "" {
 			ccy = l.defaultCurrency
 		}
-		after, err := l.store.AddDelta(ctx, creditor, c.Target, ccy, c.Minor*int64(c.Sign))
+		// Use simplified debt storage - net calculation happens at write time
+		net, err := l.store.AddDeltaWithSimplifiedDebt(ctx, creditor, c.Target, ccy, c.Minor*int64(c.Sign))
 		if err != nil {
 			return Reply{}, err
 		}
-		if after == 0 {
+		if net == 0 {
 			return Reply{Text: l.t.T(i18n.LedgerTabCleared, c.Target, ccy)}, nil
 		}
-		return Reply{Text: l.t.T(i18n.LedgerNowOwes, c.Target, formatMinor(after), ccy)}, nil
+		if net > 0 {
+			return Reply{Text: l.t.T(i18n.LedgerNowOwes, c.Target, formatMinor(net), ccy)}, nil
+		}
+		return Reply{Text: l.t.T(i18n.LedgerYouOwe, c.Target, formatMinor(-net), ccy)}, nil
 
 	case parser.KindReset:
 		if c.Target == creditor {
@@ -64,50 +68,21 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 		return Reply{Text: l.t.T(i18n.LedgerResetCurrency, c.Target, c.Currency)}, nil
 
 	case parser.KindStatusFor:
-		// Check all currencies for net debt with this person
 		rows, err := l.store.ListPair(ctx, creditor, c.Target)
 		if err != nil {
 			return Reply{}, err
 		}
-		// Also check reverse direction for debt simplification
-		reverseRows, err := l.store.ListPair(ctx, c.Target, creditor)
+		if len(rows) == 0 {
+			return Reply{Text: l.t.T(i18n.LedgerStatusForEmpty, c.Target)}, nil
+		}
+		return Reply{Text: l.t.T(i18n.LedgerStatusFor, c.Target, joinAmounts(rows, l.t, time.Now().Unix(), nil))}, nil
+
+	case parser.KindStatusAll:
+		owed, err := l.store.ListByCreditor(ctx, creditor)
 		if err != nil {
 			return Reply{}, err
 		}
-
-		if len(rows) == 0 && len(reverseRows) == 0 {
-			return Reply{Text: l.t.T(i18n.LedgerStatusForEmpty, c.Target)}, nil
-		}
-
-		// Build net amounts per currency
-		netAmounts := make(map[string]int64)
-		for _, r := range rows {
-			netAmounts[r.Currency] += r.AmountMinor
-		}
-		for _, r := range reverseRows {
-			netAmounts[r.Currency] -= r.AmountMinor
-		}
-
-		// Convert to display format
-		var displayDebts []store.Debt
-		for currency, amount := range netAmounts {
-			if amount != 0 {
-				displayDebts = append(displayDebts, store.Debt{
-					Creditor:    creditor,
-					Debtor:      c.Target,
-					Currency:    currency,
-					AmountMinor: amount,
-				})
-			}
-		}
-
-		if len(displayDebts) == 0 {
-			return Reply{Text: l.t.T(i18n.LedgerStatusForEmpty, c.Target)}, nil
-		}
-		return Reply{Text: l.t.T(i18n.LedgerStatusFor, c.Target, joinNetDebtsForStatus(displayDebts))}, nil
-
-	case parser.KindStatusAll:
-		owed, owe, err := l.store.ListNormalized(ctx, creditor)
+		owe, err := l.store.ListByDebtor(ctx, creditor)
 		if err != nil {
 			return Reply{}, err
 		}
@@ -117,17 +92,17 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 
 		creditorPay := map[string]*store.PaymentMethod{}
 		for _, r := range owe {
-			if _, seen := creditorPay[r.OtherUser]; seen {
+			if _, seen := creditorPay[r.Creditor]; seen {
 				continue
 			}
-			pm, ok, err := l.store.DefaultPaymentMethod(ctx, r.OtherUser)
+			pm, ok, err := l.store.DefaultPaymentMethod(ctx, r.Creditor)
 			if err != nil {
 				return Reply{}, err
 			}
 			if ok {
-				creditorPay[r.OtherUser] = &pm
+				creditorPay[r.Creditor] = &pm
 			} else {
-				creditorPay[r.OtherUser] = nil
+				creditorPay[r.Creditor] = nil
 			}
 		}
 
@@ -135,14 +110,14 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 		var b strings.Builder
 		if len(owed) > 0 {
 			b.WriteString(l.t.T(i18n.LedgerStatusAllOwedHeader))
-			writeNetDebtLines(&b, l.t, now, owed, nil)
+			writeGroupedLines(&b, l.t, now, owed, func(d store.Debt) string { return d.Debtor }, nil)
 		}
 		if len(owe) > 0 {
 			if len(owed) > 0 {
 				b.WriteString("\n")
 			}
 			b.WriteString(l.t.T(i18n.LedgerStatusAllOweHeader))
-			writeNetDebtLines(&b, l.t, now, owe, creditorPay)
+			writeGroupedLines(&b, l.t, now, owe, func(d store.Debt) string { return d.Creditor }, creditorPay)
 		}
 		return Reply{Text: b.String()}, nil
 
@@ -209,17 +184,17 @@ func (l *Ledger) renderPay(ctx context.Context, userID string, isSelf bool) (Rep
 	return Reply{Text: b.String()}, nil
 }
 
-func writeNetDebtLines(b *strings.Builder, tr *i18n.Translator, now int64, rows []store.NetDebt, payByKey map[string]*store.PaymentMethod) {
+func writeGroupedLines(b *strings.Builder, t *i18n.Translator, now int64, rows []store.Debt, key func(store.Debt) string, payByKey map[string]*store.PaymentMethod) {
 	var lastKey string
-	var group []store.NetDebt
+	var group []store.Debt
 	flush := func() {
 		if len(group) == 0 {
 			return
 		}
-		b.WriteString(tr.T(i18n.LedgerStatusAllLine, lastKey, joinNetAmounts(group, tr, payByKey[lastKey])))
+		b.WriteString(t.T(i18n.LedgerStatusAllLine, lastKey, joinAmounts(group, t, now, payByKey[lastKey])))
 	}
 	for _, r := range rows {
-		k := r.OtherUser
+		k := key(r)
 		if k != lastKey {
 			flush()
 			lastKey = k
@@ -230,19 +205,7 @@ func writeNetDebtLines(b *strings.Builder, tr *i18n.Translator, now int64, rows 
 	flush()
 }
 
-func joinNetDebtsForStatus(rows []store.Debt) string {
-	parts := make([]string, len(rows))
-	for i, r := range rows {
-		amount := formatMinor(r.AmountMinor)
-		if r.AmountMinor < 0 {
-			amount = formatMinor(-r.AmountMinor)
-		}
-		parts[i] = fmt.Sprintf("%s %s", amount, r.Currency)
-	}
-	return strings.Join(parts, ", ")
-}
-
-func joinNetAmounts(rows []store.NetDebt, tr *i18n.Translator, pay *store.PaymentMethod) string {
+func joinAmounts(rows []store.Debt, t *i18n.Translator, now int64, pay *store.PaymentMethod) string {
 	parts := make([]string, len(rows))
 	for i, r := range rows {
 		amount := formatMinor(r.AmountMinor)
