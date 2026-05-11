@@ -48,9 +48,7 @@ func TestLedger(t *testing.T) {
 		l := newLedger(t)
 		add(t, l, "A", "B", 1, 1000, "PLN")
 		r := add(t, l, "A", "B", -1, 9999, "PLN")
-		// With debt simplification, subtracting more than exists creates reverse debt
-		// 10.00 - 99.99 = -89.99, so A now owes B 89.99 PLN
-		if want := "You now owe <@B> 89.99 PLN."; r.Text != want {
+		if want := "Tab cleared: <@B> owes you nothing in PLN."; r.Text != want {
 			t.Fatalf("got %q, want %q", r.Text, want)
 		}
 	})
@@ -382,6 +380,38 @@ func TestLedger(t *testing.T) {
 		r3, _ := l.Apply(context.Background(), "B", parser.Command{Kind: parser.KindStatusFor, Target: "A"})
 		if want := "<@A> owes you nothing."; r3.Text != want {
 			t.Fatalf("B view after reset: got %q, want %q", r3.Text, want)
+		}
+	})
+
+	t.Run("net debt simplification - bidirectional debts cancel at read time", func(t *testing.T) {
+		l := newLedger(t)
+		// Store debts separately (full audit)
+		add(t, l, "Adam", "Kamil", 1, 6200, "PLN") // Kamil owes Adam 62 PLN
+		add(t, l, "Kamil", "Adam", 1, 1950, "PLN") // Adam owes Kamil 19.50 PLN
+
+		// Status shows net debt: 62 - 19.50 = 42.50 PLN owed to Adam
+		adamView, _ := l.Apply(context.Background(), "Adam", parser.Command{Kind: parser.KindStatusAll})
+		wantAdam := "Owed to you:\n- <@Kamil> - 42.50 PLN"
+		if adamView.Text != wantAdam {
+			t.Fatalf("Adam view: got %q, want %q", adamView.Text, wantAdam)
+		}
+
+		// Kamil sees he owes 42.50
+		kamilView, _ := l.Apply(context.Background(), "Kamil", parser.Command{Kind: parser.KindStatusAll})
+		wantKamil := "You owe:\n- <@Adam> - 42.50 PLN"
+		if kamilView.Text != wantKamil {
+			t.Fatalf("Kamil view: got %q, want %q", kamilView.Text, wantKamil)
+		}
+	})
+
+	t.Run("net debt simplification - exact cancel shows empty", func(t *testing.T) {
+		l := newLedger(t)
+		add(t, l, "A", "B", 1, 2000, "PLN")
+		add(t, l, "B", "A", 1, 2000, "PLN")
+
+		r, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindStatusAll})
+		if want := "Nobody owes you and you owe nothing."; r.Text != want {
+			t.Fatalf("got %q, want %q", r.Text, want)
 		}
 	})
 }
