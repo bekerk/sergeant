@@ -133,7 +133,7 @@ var bundles = map[string]map[string]string{
 		LedgerStatusAllOweHeader:  "Masz dług u:",
 		LedgerStatusAllLine:       "\n- <@%s> - %s",
 
-		LedgerSummaryOwedHeader: "Kto jest ci winny pieniądze:",
+		LedgerSummaryOwedHeader: "Kto jest winny pieniądze:",
 		LedgerSummaryPayHeader:  "Jak zapłacić:",
 		LedgerSummaryEmpty:      "Nikt nie ma u ciebie długu.",
 
