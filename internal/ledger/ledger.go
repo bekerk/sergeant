@@ -121,6 +121,39 @@ func (l *Ledger) Apply(ctx context.Context, creditor string, c parser.Command) (
 		}
 		return Reply{Text: b.String()}, nil
 
+	case parser.KindSummary:
+		owed, err := l.store.ListByCreditor(ctx, creditor)
+		if err != nil {
+			return Reply{}, err
+		}
+		if len(owed) == 0 {
+			return Reply{Text: l.t.T(i18n.LedgerSummaryEmpty)}, nil
+		}
+
+		now := time.Now().Unix()
+		var b strings.Builder
+		b.WriteString(l.t.T(i18n.LedgerSummaryOwedHeader))
+		writeGroupedLines(&b, l.t, now, owed, func(d store.Debt) string { return d.Debtor }, nil)
+
+		// Append host's own payment methods so people know how to pay them.
+		pms, err := l.store.ListPaymentMethods(ctx, creditor)
+		if err != nil {
+			return Reply{}, err
+		}
+		if len(pms) > 0 {
+			b.WriteString("\n\n")
+			b.WriteString(l.t.T(i18n.LedgerSummaryPayHeader))
+			for _, pm := range pms {
+				id := i18n.PayLine
+				if pm.IsDefault {
+					id = i18n.PayLineDefault
+				}
+				b.WriteString(l.t.T(id, pm.Method, pm.Value))
+			}
+		}
+
+		return Reply{Text: b.String()}, nil
+
 	case parser.KindPaySet:
 		if err := l.store.SetPaymentMethod(ctx, creditor, c.PayMethod, c.PayValue); err != nil {
 			return Reply{}, err

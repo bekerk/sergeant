@@ -384,4 +384,81 @@ func TestLedger(t *testing.T) {
 			t.Fatalf("B view after reset: got %q, want %q", r3.Text, want)
 		}
 	})
+
+	t.Run("summary empty", func(t *testing.T) {
+		l := newLedger(t)
+		r, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindSummary})
+		if want := "Nobody owes you anything."; r.Text != want {
+			t.Fatalf("got %q, want %q", r.Text, want)
+		}
+	})
+
+	t.Run("summary with debts but no payment methods", func(t *testing.T) {
+		l := newLedger(t)
+		add(t, l, "A", "B", 1, 2000, "PLN")
+		add(t, l, "A", "C", 1, 3470, "PLN")
+		r, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindSummary})
+		want := "Who owes you money:\n- <@B> - 20.00 PLN\n- <@C> - 34.70 PLN"
+		if r.Text != want {
+			t.Fatalf("got %q, want %q", r.Text, want)
+		}
+	})
+
+	t.Run("summary with debts and payment methods", func(t *testing.T) {
+		l := newLedger(t)
+		ctx := context.Background()
+		add(t, l, "A", "B", 1, 2300, "PLN")
+		add(t, l, "A", "C", 1, 3400, "PLN")
+		_, _ = l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySet, PayMethod: "bank", PayValue: "PL61 1090 1234"})
+		_, _ = l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySet, PayMethod: "blik", PayValue: "555 555 555"})
+		r, _ := l.Apply(ctx, "A", parser.Command{Kind: parser.KindSummary})
+		want := "Who owes you money:\n- <@B> - 23.00 PLN\n- <@C> - 34.00 PLN\n\nPay here:\n- `bank` - PL61 1090 1234\n- `blik` - 555 555 555"
+		if r.Text != want {
+			t.Fatalf("got %q, want %q", r.Text, want)
+		}
+	})
+
+	t.Run("summary with payments including default", func(t *testing.T) {
+		l := newLedger(t)
+		ctx := context.Background()
+		add(t, l, "A", "B", 1, 2300, "PLN")
+		_, _ = l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySet, PayMethod: "bank", PayValue: "PL61 1090 1234"})
+		_, _ = l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySet, PayMethod: "blik", PayValue: "555 555 555"})
+		_, _ = l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySetDefault, PayMethod: "blik"})
+		r, _ := l.Apply(ctx, "A", parser.Command{Kind: parser.KindSummary})
+		want := "Who owes you money:\n- <@B> - 23.00 PLN\n\nPay here:\n- `blik` - 555 555 555 (default)\n- `bank` - PL61 1090 1234"
+		if r.Text != want {
+			t.Fatalf("got %q, want %q", r.Text, want)
+		}
+	})
+
+	t.Run("summary polish locale", func(t *testing.T) {
+		l := newLedgerLocale(t, "pl")
+		add(t, l, "A", "B", 1, 2300, "PLN")
+		r, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindSummary})
+		want := "Kto jest ci winny pieniądze:\n- <@B> - 23.00 PLN"
+		if r.Text != want {
+			t.Fatalf("got %q, want %q", r.Text, want)
+		}
+	})
+
+	t.Run("summary polish empty", func(t *testing.T) {
+		l := newLedgerLocale(t, "pl")
+		r, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindSummary})
+		if want := "Nikt nie ma u ciebie długu."; r.Text != want {
+			t.Fatalf("got %q, want %q", r.Text, want)
+		}
+	})
+
+	t.Run("summary polish with pay methods", func(t *testing.T) {
+		l := newLedgerLocale(t, "pl")
+		ctx := context.Background()
+		add(t, l, "A", "B", 1, 2300, "PLN")
+		_, _ = l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySet, PayMethod: "blik", PayValue: "555 555 555"})
+		r, _ := l.Apply(ctx, "A", parser.Command{Kind: parser.KindSummary})
+		want := "Kto jest ci winny pieniądze:\n- <@B> - 23.00 PLN\n\nJak zapłacić:\n- `blik` - 555 555 555"
+		if r.Text != want {
+			t.Fatalf("got %q, want %q", r.Text, want)
+		}
+	})
 }

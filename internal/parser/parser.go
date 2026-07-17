@@ -25,6 +25,7 @@ const (
 	KindPayShowFor
 	KindHelp
 	KindHello
+	KindSummary
 )
 
 type Command struct {
@@ -52,6 +53,9 @@ func Parse(text string) (Command, error) {
 	}
 	if strings.EqualFold(text, "help") {
 		return Command{Kind: KindHelp}, nil
+	}
+	if strings.EqualFold(text, "summary") {
+		return Command{Kind: KindSummary}, nil
 	}
 	if strings.EqualFold(text, "hello") {
 		return Command{Kind: KindHello}, nil
