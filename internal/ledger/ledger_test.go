@@ -456,7 +456,7 @@ func TestLedger(t *testing.T) {
 		add(t, l, "A", "B", 1, 2300, "PLN")
 		_, _ = l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySet, PayMethod: "blik", PayValue: "555 555 555"})
 		r, _ := l.Apply(ctx, "A", parser.Command{Kind: parser.KindSummary})
-		want := "Podsumowanie:\n- <@B> - 23.00 PLN\n\n:money_with_wings:\n- `blik` - 555 555 555"
+		want := "Podsumowanie\n- <@B> - 23.00 PLN\n\n:money_with_wings:\n- `blik` - 555 555 555"
 		if r.Text != want {
 			t.Fatalf("got %q, want %q", r.Text, want)
 		}
