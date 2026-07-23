@@ -28,7 +28,7 @@ A Slack bot that tracks who owes you money.
 @sergeant hello            posts the help message to the channel
 ```
 
-Add/reset replies in the thread so the other person sees them. Status and pay replies are private to you.
+Debt changes in channels are acknowledged with a `:sergeant:` reaction; in DMs they receive a text reply. Status and pay replies are private to you.
 
 You can also DM the bot directly - drop the `@sergeant` prefix and just type the command (e.g. `@jan +20 PLN`).
 

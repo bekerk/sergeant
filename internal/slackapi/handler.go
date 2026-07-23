@@ -164,10 +164,15 @@ func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
 	ctx, cancel := context.WithTimeout(context.Background(), replyTimeout)
 	defer cancel()
 
-	if msg.source == "app_mention" {
+	acknowledge := func() bool {
+		if msg.source != "app_mention" {
+			return false
+		}
 		if err := h.Responder.AddReaction(ctx, msg.channel, msg.ts, mentionEmoji); err != nil {
 			h.Logger.Warn("add reaction", "err", err)
+			return false
 		}
+		return true
 	}
 
 	stripped := stripBotMention(msg.text, h.BotUserID)
@@ -180,6 +185,7 @@ func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
 	cmd, err := parser.Parse(stripped)
 	if err != nil {
 		h.Logger.Info("unrecognized command", "text", stripped)
+		acknowledge()
 		if err := h.Responder.AddReaction(ctx, msg.channel, msg.ts, unrecognizedCommandEmoji); err != nil {
 			h.Logger.Warn("add reaction", "err", err)
 		}
@@ -189,11 +195,13 @@ func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
 	h.Logger.Info("dispatch", "kind", cmd.Kind, "target", cmd.Target)
 
 	if cmd.Kind == parser.KindHelp {
+		acknowledge()
 		h.send(ctx, Reply{channel: msg.channel, user: msg.user, text: h.Translator.T(i18n.HandlerUsage), ephemeral: true})
 		return
 	}
 
 	if cmd.Kind == parser.KindHello {
+		acknowledge()
 		threadTs := msg.threadTs
 		if threadTs == "" {
 			threadTs = msg.ts
@@ -203,6 +211,7 @@ func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
 	}
 
 	if cmd.Kind == parser.KindPaySetForm {
+		acknowledge()
 		if err := h.Responder.PostEphemeralBlocks(
 			ctx, msg.channel, msg.user,
 			h.Translator.T(i18n.PayOpenerText),
@@ -222,6 +231,11 @@ func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
 			h.Logger.Error("ledger apply", "err", err)
 		}
 		h.send(ctx, Reply{channel: msg.channel, user: msg.user, text: text, ephemeral: true})
+		return
+	}
+
+	acknowledged := acknowledge()
+	if acknowledged && (cmd.Kind == parser.KindAdd || cmd.Kind == parser.KindReset) {
 		return
 	}
 

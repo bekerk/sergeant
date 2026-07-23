@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"github.com/slack-go/slack"
+	"github.com/slack-go/slack/slackevents"
 
 	"sergeant/internal/i18n"
 	"sergeant/internal/ledger"
@@ -40,12 +42,13 @@ type post struct {
 type reaction struct{ channel, ts, name string }
 
 type spy struct {
-	mu        sync.Mutex
-	calls     []post
-	views     []slack.ModalViewRequest
-	triggers  []string
-	reactions []reaction
-	done      chan struct{}
+	mu          sync.Mutex
+	calls       []post
+	views       []slack.ModalViewRequest
+	triggers    []string
+	reactions   []reaction
+	reactionErr error
+	done        chan struct{}
 }
 
 func newSpy() *spy { return &spy{done: make(chan struct{}, 8)} }
@@ -71,7 +74,7 @@ func (s *spy) AddReaction(_ context.Context, channel, ts, name string) error {
 	s.mu.Lock()
 	s.reactions = append(s.reactions, reaction{channel, ts, name})
 	s.mu.Unlock()
-	return nil
+	return s.reactionErr
 }
 func (s *spy) add(p post) error {
 	s.mu.Lock()
@@ -113,6 +116,24 @@ func newHandler(t *testing.T) (*Handler, *spy, *ledger.Ledger) {
 	return h, sp, led
 }
 
+func waitForStatus(t *testing.T, l *ledger.Ledger, want string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		r, err := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.Text == want {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for status %q; last status was %q", want, r.Text)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func sign(t *testing.T, body []byte, ts int64) *http.Request {
 	t.Helper()
 	mac := hmac.New(sha256.New, []byte(testSecret))
@@ -126,6 +147,15 @@ func sign(t *testing.T, body []byte, ts int64) *http.Request {
 
 func appMention(text string) []byte {
 	return []byte(fmt.Sprintf(`{"type":"event_callback","event":{"type":"app_mention","user":"UAAA","text":%q,"channel":"C1","ts":"123.456"}}`, text))
+}
+
+func parseCallbackEvent(t *testing.T, body []byte) slackevents.EventsAPIEvent {
+	t.Helper()
+	event, err := slackevents.ParseEvent(json.RawMessage(body), slackevents.OptionNoVerifyToken())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return event
 }
 
 func TestVerification(t *testing.T) {
@@ -173,7 +203,6 @@ func TestAppMentionDispatch(t *testing.T) {
 		// user ID ("UAAA") for ephemeral
 		target string
 	}{
-		{name: "add", text: "<@USERGEANT> <@UBBB> +20 PLN", ephemeral: false, want: ":cop: <@UBBB> now owes you 20.00 PLN.", target: "123.456"},
 		{name: "status all", text: "<@USERGEANT> status", ephemeral: false, want: ":cop: Nobody owes you and you owe nothing.", target: "123.456"},
 		{name: "unrecognized", text: "<@USERGEANT> ¿qué?", ephemeral: true, want: usageReply, target: "UAAA"},
 		{name: "bare mention", text: "<@USERGEANT>", ephemeral: true, want: usageReply, target: "UAAA"},
@@ -231,15 +260,88 @@ func TestDirectMessageNoReaction(t *testing.T) {
 	}
 }
 
-func TestAppMentionWritesToLedger(t *testing.T) {
-	h, sp, l := newHandler(t)
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, sign(t, appMention("<@USERGEANT> <@UBBB> +20 PLN"), time.Now().Unix()))
-	sp.wait(t)
+func TestAppMentionDebtMutationsUseReactionOnly(t *testing.T) {
+	tests := []struct {
+		name         string
+		initialMinor int64
+		command      string
+		wantStatus   string
+	}{
+		{name: "add", command: "<@USERGEANT> <@UBBB> +20 PLN", wantStatus: "<@UBBB> owes you 20.00 PLN."},
+		{name: "subtract", initialMinor: 2000, command: "<@USERGEANT> <@UBBB> -5 PLN", wantStatus: "<@UBBB> owes you 15.00 PLN."},
+		{name: "reset", initialMinor: 2000, command: "<@USERGEANT> <@UBBB> reset", wantStatus: "<@UBBB> owes you nothing."},
+	}
 
-	r, _ := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			h, sp, l := newHandler(t)
+			if tc.initialMinor > 0 {
+				if _, err := l.Apply(context.Background(), "UAAA", parser.Command{
+					Kind: parser.KindAdd, Target: "UBBB", Sign: 1, Minor: tc.initialMinor, Currency: "PLN",
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			h.dispatch(parseCallbackEvent(t, appMention(tc.command)))
+
+			sp.mu.Lock()
+			defer sp.mu.Unlock()
+			if len(sp.reactions) != 1 || sp.reactions[0].name != mentionEmoji {
+				t.Fatalf("reactions = %v, want one %q reaction", sp.reactions, mentionEmoji)
+			}
+			if len(sp.calls) != 0 {
+				t.Fatalf("debt mutation should not post a message, got %v", sp.calls)
+			}
+			r, err := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if r.Text != tc.wantStatus {
+				t.Fatalf("ledger view: got %q, want %q", r.Text, tc.wantStatus)
+			}
+		})
+	}
+}
+
+func TestAppMentionDebtMutationFallsBackToTextWhenReactionFails(t *testing.T) {
+	h, sp, l := newHandler(t)
+	sp.reactionErr = errors.New("reaction unavailable")
+
+	h.dispatch(parseCallbackEvent(t, appMention("<@USERGEANT> <@UBBB> +20 PLN")))
+
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	if len(sp.calls) != 1 {
+		t.Fatalf("calls = %v, want one fallback message", sp.calls)
+	}
+	if want := ":cop: <@UBBB> now owes you 20.00 PLN."; sp.calls[0].text != want {
+		t.Fatalf("fallback text = %q, want %q", sp.calls[0].text, want)
+	}
+	r, err := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if want := "<@UBBB> owes you 20.00 PLN."; r.Text != want {
 		t.Fatalf("ledger view: got %q, want %q", r.Text, want)
+	}
+}
+
+func TestAppMentionFailedDebtMutationDoesNotAcknowledgeSuccess(t *testing.T) {
+	h, sp, _ := newHandler(t)
+
+	h.dispatch(parseCallbackEvent(t, appMention("<@USERGEANT> <@UAAA> +20 PLN")))
+
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	if len(sp.reactions) != 0 {
+		t.Fatalf("failed mutation should not receive a success reaction, got %v", sp.reactions)
+	}
+	if len(sp.calls) != 1 || !sp.calls[0].ephemeral {
+		t.Fatalf("calls = %v, want one ephemeral error", sp.calls)
+	}
+	if want := ":cop: You can't owe yourself."; sp.calls[0].text != want {
+		t.Fatalf("error text = %q, want %q", sp.calls[0].text, want)
 	}
 }
 
@@ -467,7 +569,7 @@ func TestAppMentionPayClear(t *testing.T) {
 }
 
 func TestAppMentionReset(t *testing.T) {
-	h, sp, l := newHandler(t)
+	h, _, l := newHandler(t)
 	ctx := context.Background()
 	if _, err := l.Apply(ctx, "UAAA", parser.Command{Kind: parser.KindAdd, Target: "UBBB", Sign: 1, Minor: 2000, Currency: "PLN"}); err != nil {
 		t.Fatal(err)
@@ -480,15 +582,11 @@ func TestAppMentionReset(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("got %d", rec.Code)
 	}
-	sp.wait(t)
-	r, _ := l.Apply(ctx, "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
-	if want := "<@UBBB> owes you nothing."; r.Text != want {
-		t.Errorf("both currencies should be cleared: got %q, want %q", r.Text, want)
-	}
+	waitForStatus(t, l, "<@UBBB> owes you nothing.")
 }
 
 func TestAppMentionResetCurrency(t *testing.T) {
-	h, sp, l := newHandler(t)
+	h, _, l := newHandler(t)
 	ctx := context.Background()
 	if _, err := l.Apply(ctx, "UAAA", parser.Command{Kind: parser.KindAdd, Target: "UBBB", Sign: 1, Minor: 2000, Currency: "PLN"}); err != nil {
 		t.Fatal(err)
@@ -501,11 +599,7 @@ func TestAppMentionResetCurrency(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("got %d", rec.Code)
 	}
-	sp.wait(t)
-	r, _ := l.Apply(ctx, "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
-	if want := "<@UBBB> owes you 10.00 EUR."; r.Text != want {
-		t.Errorf("EUR should remain, PLN cleared: got %q, want %q", r.Text, want)
-	}
+	waitForStatus(t, l, "<@UBBB> owes you 10.00 EUR.")
 }
 
 func TestRejectsNonPost(t *testing.T) {
