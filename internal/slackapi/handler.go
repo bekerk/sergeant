@@ -234,10 +234,13 @@ func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
 		return
 	}
 
-	acknowledged := acknowledge()
-	if acknowledged && (cmd.Kind == parser.KindAdd || cmd.Kind == parser.KindReset) {
+	if cmd.Kind == parser.KindAdd || cmd.Kind == parser.KindReset {
+		if err := h.Responder.AddReaction(ctx, msg.channel, msg.ts, mentionEmoji); err != nil {
+			h.Logger.Warn("add debt mutation reaction", "err", err)
+		}
 		return
 	}
+	acknowledge()
 
 	threadTs := msg.threadTs
 	if threadTs == "" {

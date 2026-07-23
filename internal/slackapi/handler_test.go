@@ -248,15 +248,25 @@ func TestAppMentionAddsReaction(t *testing.T) {
 	}
 }
 
-func TestDirectMessageNoReaction(t *testing.T) {
-	h, sp, _ := newHandler(t)
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, sign(t, directMessage("<@UBBB> +20 PLN"), time.Now().Unix()))
-	sp.wait(t)
+func TestDirectMessageDebtMutationUsesReactionOnly(t *testing.T) {
+	h, sp, l := newHandler(t)
+
+	h.dispatch(parseCallbackEvent(t, directMessage("<@UBBB> +20 PLN")))
+
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
-	if len(sp.reactions) != 0 {
-		t.Errorf("DM should not trigger a reaction, got %v", sp.reactions)
+	if len(sp.reactions) != 1 || sp.reactions[0].name != mentionEmoji {
+		t.Fatalf("reactions = %v, want one %q reaction", sp.reactions, mentionEmoji)
+	}
+	if len(sp.calls) != 0 {
+		t.Fatalf("DM debt mutation should not post a message, got %v", sp.calls)
+	}
+	r, err := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "<@UBBB> owes you 20.00 PLN."; r.Text != want {
+		t.Fatalf("ledger view: got %q, want %q", r.Text, want)
 	}
 }
 
@@ -304,7 +314,7 @@ func TestAppMentionDebtMutationsUseReactionOnly(t *testing.T) {
 	}
 }
 
-func TestAppMentionDebtMutationFallsBackToTextWhenReactionFails(t *testing.T) {
+func TestAppMentionDebtMutationDoesNotReplyWhenReactionFails(t *testing.T) {
 	h, sp, l := newHandler(t)
 	sp.reactionErr = errors.New("reaction unavailable")
 
@@ -312,11 +322,8 @@ func TestAppMentionDebtMutationFallsBackToTextWhenReactionFails(t *testing.T) {
 
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
-	if len(sp.calls) != 1 {
-		t.Fatalf("calls = %v, want one fallback message", sp.calls)
-	}
-	if want := ":cop: <@UBBB> now owes you 20.00 PLN."; sp.calls[0].text != want {
-		t.Fatalf("fallback text = %q, want %q", sp.calls[0].text, want)
+	if len(sp.calls) != 0 {
+		t.Fatalf("debt mutation should remain silent when the reaction fails, got %v", sp.calls)
 	}
 	r, err := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
 	if err != nil {
@@ -691,10 +698,10 @@ func directMessageWithBot(text string) []byte {
 	return []byte(fmt.Sprintf(`{"type":"event_callback","event":{"type":"message","channel_type":"im","user":"UAAA","bot_id":"B1","text":%q,"channel":"D1","ts":"123.456"}}`, text))
 }
 
-func TestDirectMessageDispatch(t *testing.T) {
-	h, sp, l := newHandler(t)
+func TestDirectMessageQueryDispatch(t *testing.T) {
+	h, sp, _ := newHandler(t)
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, sign(t, directMessage("<@UBBB> +20 PLN"), time.Now().Unix()))
+	h.ServeHTTP(rec, sign(t, directMessage("status"), time.Now().Unix()))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("got %d", rec.Code)
 	}
@@ -702,12 +709,8 @@ func TestDirectMessageDispatch(t *testing.T) {
 	if p.ephemeral {
 		t.Errorf("DM reply should not be ephemeral")
 	}
-	if want := ":cop: <@UBBB> now owes you 20.00 PLN."; p.text != want {
+	if want := ":cop: Nobody owes you and you owe nothing."; p.text != want {
 		t.Errorf("text: got %q, want %q", p.text, want)
-	}
-	r, _ := l.Apply(context.Background(), "UAAA", parser.Command{Kind: parser.KindStatusFor, Target: "UBBB"})
-	if want := "<@UBBB> owes you 20.00 PLN."; r.Text != want {
-		t.Fatalf("ledger view: got %q, want %q", r.Text, want)
 	}
 }
 
