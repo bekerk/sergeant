@@ -1,6 +1,7 @@
 package i18n
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -35,6 +36,15 @@ func TestEveryKeyTranslatedInEveryLocale(t *testing.T) {
 			if _, ok := enKeys[k]; !ok {
 				t.Errorf("locale %q has stray key %q (not in en)", locale, k)
 			}
+		}
+	}
+}
+
+func TestHelpDocumentsSummary(t *testing.T) {
+	for _, locale := range Available() {
+		usage := New(locale).T(HandlerUsage)
+		if !strings.Contains(usage, "`@sergeant summary`") {
+			t.Errorf("%s help omits summary command:\n%s", locale, usage)
 		}
 	}
 }

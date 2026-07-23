@@ -48,6 +48,7 @@ type spy struct {
 	triggers    []string
 	reactions   []reaction
 	reactionErr error
+	postErr     error
 	done        chan struct{}
 }
 
@@ -81,7 +82,7 @@ func (s *spy) add(p post) error {
 	s.calls = append(s.calls, p)
 	s.mu.Unlock()
 	s.done <- struct{}{}
-	return nil
+	return s.postErr
 }
 func (s *spy) wait(t *testing.T) post {
 	t.Helper()
@@ -232,19 +233,59 @@ func TestAppMentionDispatch(t *testing.T) {
 	}
 }
 
-func TestAppMentionAddsReaction(t *testing.T) {
+func TestAppMentionSuccessfulQueryAddsSuccessReactions(t *testing.T) {
 	h, sp, _ := newHandler(t)
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, sign(t, appMention("<@USERGEANT> status"), time.Now().Unix()))
-	sp.wait(t)
+
+	h.dispatch(parseCallbackEvent(t, appMention("<@USERGEANT> status")))
+
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
-	if len(sp.reactions) != 1 {
-		t.Fatalf("reactions = %v, want 1", sp.reactions)
+	if len(sp.reactions) != 2 {
+		t.Fatalf("reactions = %v, want 2", sp.reactions)
 	}
-	got := sp.reactions[0]
-	if got.channel != "C1" || got.ts != "123.456" || got.name != "sergeant" {
-		t.Errorf("reaction = %+v", got)
+	if got := sp.reactions[0]; got.channel != "C1" || got.ts != "123.456" || got.name != mentionEmoji {
+		t.Errorf("acknowledgement reaction = %+v", got)
+	}
+	if got := sp.reactions[1]; got.channel != "C1" || got.ts != "123.456" || got.name != successEmoji {
+		t.Errorf("success reaction = %+v", got)
+	}
+}
+
+func TestSuccessfulHandlerCommandsAddSuccessReactions(t *testing.T) {
+	tests := []struct {
+		name    string
+		command string
+	}{
+		{name: "help", command: "<@USERGEANT> help"},
+		{name: "hello", command: "<@USERGEANT> hello"},
+		{name: "payment form", command: "<@USERGEANT> pay set"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			h, sp, _ := newHandler(t)
+
+			h.dispatch(parseCallbackEvent(t, appMention(tc.command)))
+
+			sp.mu.Lock()
+			defer sp.mu.Unlock()
+			if len(sp.reactions) != 2 || sp.reactions[0].name != mentionEmoji || sp.reactions[1].name != successEmoji {
+				t.Fatalf("reactions = %v, want %q followed by %q", sp.reactions, mentionEmoji, successEmoji)
+			}
+		})
+	}
+}
+
+func TestFailedResponseDoesNotAddSuccessReaction(t *testing.T) {
+	h, sp, _ := newHandler(t)
+	sp.postErr = errors.New("post unavailable")
+
+	h.dispatch(parseCallbackEvent(t, appMention("<@USERGEANT> status")))
+
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	if len(sp.reactions) != 1 || sp.reactions[0].name != mentionEmoji {
+		t.Fatalf("reactions = %v, want only %q acknowledgement", sp.reactions, mentionEmoji)
 	}
 }
 
@@ -255,8 +296,8 @@ func TestDirectMessageDebtMutationUsesReactionOnly(t *testing.T) {
 
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
-	if len(sp.reactions) != 1 || sp.reactions[0].name != mentionEmoji {
-		t.Fatalf("reactions = %v, want one %q reaction", sp.reactions, mentionEmoji)
+	if len(sp.reactions) != 2 || sp.reactions[0].name != mentionEmoji || sp.reactions[1].name != successEmoji {
+		t.Fatalf("reactions = %v, want %q followed by %q", sp.reactions, mentionEmoji, successEmoji)
 	}
 	if len(sp.calls) != 0 {
 		t.Fatalf("DM debt mutation should not post a message, got %v", sp.calls)
@@ -297,8 +338,8 @@ func TestAppMentionDebtMutationsUseReactionOnly(t *testing.T) {
 
 			sp.mu.Lock()
 			defer sp.mu.Unlock()
-			if len(sp.reactions) != 1 || sp.reactions[0].name != mentionEmoji {
-				t.Fatalf("reactions = %v, want one %q reaction", sp.reactions, mentionEmoji)
+			if len(sp.reactions) != 2 || sp.reactions[0].name != mentionEmoji || sp.reactions[1].name != successEmoji {
+				t.Fatalf("reactions = %v, want %q followed by %q", sp.reactions, mentionEmoji, successEmoji)
 			}
 			if len(sp.calls) != 0 {
 				t.Fatalf("debt mutation should not post a message, got %v", sp.calls)
@@ -709,17 +750,19 @@ func directMessageWithBot(text string) []byte {
 
 func TestDirectMessageQueryDispatch(t *testing.T) {
 	h, sp, _ := newHandler(t)
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, sign(t, directMessage("status"), time.Now().Unix()))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("got %d", rec.Code)
+
+	h.dispatch(parseCallbackEvent(t, directMessage("status")))
+
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	if len(sp.calls) != 1 || sp.calls[0].ephemeral {
+		t.Fatalf("calls = %v, want one non-ephemeral reply", sp.calls)
 	}
-	p := sp.wait(t)
-	if p.ephemeral {
-		t.Errorf("DM reply should not be ephemeral")
+	if want := ":cop: Nobody owes you and you owe nothing."; sp.calls[0].text != want {
+		t.Errorf("text: got %q, want %q", sp.calls[0].text, want)
 	}
-	if want := ":cop: Nobody owes you and you owe nothing."; p.text != want {
-		t.Errorf("text: got %q, want %q", p.text, want)
+	if len(sp.reactions) != 1 || sp.reactions[0].name != successEmoji {
+		t.Fatalf("reactions = %v, want one %q reaction", sp.reactions, successEmoji)
 	}
 }
 

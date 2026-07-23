@@ -15,6 +15,7 @@ A Slack bot that tracks who owes you money.
 @sergeant @jan reset       clears his tab with you
 @sergeant @jan status      shows what he owes you (or @sergeant @jan ?)
 @sergeant status           shows everyone's tab with you (or @sergeant ?)
+@sergeant summary          posts who owes you and your payment methods
 
 @sergeant pay set          opens a private form to add a payment method
 @sergeant pay set bank PL61 1090 ...   same, but typed inline
@@ -28,7 +29,7 @@ A Slack bot that tracks who owes you money.
 @sergeant hello            posts the help message to the channel
 ```
 
-Debt changes use reactions only, including in DMs: `:sergeant:` on success and `:sergeant-no:` on failure. Status and pay replies are private to you.
+Every successful command gets a `:white_check_mark:` reaction. Debt changes use reactions only, including in DMs: `:sergeant:` plus `:white_check_mark:` on success and `:sergeant-no:` on failure. Status and pay replies are private to you.
 
 You can also DM the bot directly - drop the `@sergeant` prefix and just type the command (e.g. `@jan +20 PLN`).
 

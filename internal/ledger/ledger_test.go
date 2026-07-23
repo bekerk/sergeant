@@ -398,7 +398,7 @@ func TestLedger(t *testing.T) {
 		add(t, l, "A", "B", 1, 2000, "PLN")
 		add(t, l, "A", "C", 1, 3470, "PLN")
 		r, _ := l.Apply(context.Background(), "A", parser.Command{Kind: parser.KindSummary})
-		want := "Summary\n- <@B> - 20.00 PLN\n- <@C> - 34.70 PLN"
+		want := "Summary:\n- <@B> - 20.00 PLN\n- <@C> - 34.70 PLN"
 		if r.Text != want {
 			t.Fatalf("got %q, want %q", r.Text, want)
 		}
@@ -412,7 +412,7 @@ func TestLedger(t *testing.T) {
 		_, _ = l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySet, PayMethod: "bank", PayValue: "PL61 1090 1234"})
 		_, _ = l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySet, PayMethod: "blik", PayValue: "555 555 555"})
 		r, _ := l.Apply(ctx, "A", parser.Command{Kind: parser.KindSummary})
-		want := "Summary\n- <@B> - 23.00 PLN\n- <@C> - 34.00 PLN\n\n:money_with_wings:\n- `bank` - PL61 1090 1234\n- `blik` - 555 555 555"
+		want := "Summary:\n- <@B> - 23.00 PLN\n- <@C> - 34.00 PLN\n\n:money_with_wings:\n- `bank` - PL61 1090 1234\n- `blik` - 555 555 555"
 		if r.Text != want {
 			t.Fatalf("got %q, want %q", r.Text, want)
 		}
@@ -426,7 +426,7 @@ func TestLedger(t *testing.T) {
 		_, _ = l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySet, PayMethod: "blik", PayValue: "555 555 555"})
 		_, _ = l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySetDefault, PayMethod: "blik"})
 		r, _ := l.Apply(ctx, "A", parser.Command{Kind: parser.KindSummary})
-		want := "Summary\n- <@B> - 23.00 PLN\n\n:money_with_wings:\n- `blik` - 555 555 555 (default)\n- `bank` - PL61 1090 1234"
+		want := "Summary:\n- <@B> - 23.00 PLN\n\n:money_with_wings:\n- `blik` - 555 555 555 (default)\n- `bank` - PL61 1090 1234"
 		if r.Text != want {
 			t.Fatalf("got %q, want %q", r.Text, want)
 		}
@@ -456,7 +456,7 @@ func TestLedger(t *testing.T) {
 		add(t, l, "A", "B", 1, 2300, "PLN")
 		_, _ = l.Apply(ctx, "A", parser.Command{Kind: parser.KindPaySet, PayMethod: "blik", PayValue: "555 555 555"})
 		r, _ := l.Apply(ctx, "A", parser.Command{Kind: parser.KindSummary})
-		want := "Podsumowanie\n- <@B> - 23.00 PLN\n\n:money_with_wings:\n- `blik` - 555 555 555"
+		want := "Podsumowanie:\n- <@B> - 23.00 PLN\n\n:money_with_wings:\n- `blik` - 555 555 555"
 		if r.Text != want {
 			t.Fatalf("got %q, want %q", r.Text, want)
 		}

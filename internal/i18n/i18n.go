@@ -70,7 +70,7 @@ var bundles = map[string]map[string]string{
 		LedgerStatusAllOweHeader:  "You owe:",
 		LedgerStatusAllLine:       "\n- <@%s> - %s",
 
-		LedgerSummaryOwedHeader: "Summary",
+		LedgerSummaryOwedHeader: "Summary:",
 		LedgerSummaryPayHeader:  ":money_with_wings:",
 		LedgerSummaryEmpty:      "Nobody owes you anything.",
 
@@ -106,7 +106,8 @@ var bundles = map[string]map[string]string{
 			"- `@sergeant <@user> -AMOUNT [CCY]` - subtract from their tab\n" +
 			"- `@sergeant <@user> reset [CCY]` - clear their tab (one currency or all)\n" +
 			"- `@sergeant <@user> status` (or `?`) - what they owe you\n" +
-			"- `@sergeant status` (or `?`) - everything you owe and are owed\n\n" +
+			"- `@sergeant status` (or `?`) - everything you owe and are owed\n" +
+			"- `@sergeant summary` - post who owes you and your payment methods\n\n" +
 			"*Payment methods*\n" +
 			"- `@sergeant pay me` - show your saved methods\n" +
 			"- `@sergeant pay set` - open a private form\n" +
@@ -133,7 +134,7 @@ var bundles = map[string]map[string]string{
 		LedgerStatusAllOweHeader:  "Masz dług u:",
 		LedgerStatusAllLine:       "\n- <@%s> - %s",
 
-		LedgerSummaryOwedHeader: "Podsumowanie",
+		LedgerSummaryOwedHeader: "Podsumowanie:",
 		LedgerSummaryPayHeader:  ":money_with_wings:",
 		LedgerSummaryEmpty:      "Nikt nie ma u ciebie długu.",
 
@@ -169,7 +170,8 @@ var bundles = map[string]map[string]string{
 			"- `@sergeant <@user> -KWOTA [WALUTA]` - odejmij od jego rachunku\n" +
 			"- `@sergeant <@user> reset [WALUTA]` - wyzeruj rachunek (jedna waluta lub wszystko)\n" +
 			"- `@sergeant <@user> status` (lub `?`) - ile jest ci winny\n" +
-			"- `@sergeant status` (lub `?`) - wszystko, co jesteś winny i co tobie są winni\n\n" +
+			"- `@sergeant status` (lub `?`) - wszystko, co jesteś winny i co tobie są winni\n" +
+			"- `@sergeant summary` - opublikuj, kto ma u ciebie dług, wraz z twoimi metodami płatności\n\n" +
 			"*Metody płatności*\n" +
 			"- `@sergeant pay me` - pokaż twoje zapisane metody\n" +
 			"- `@sergeant pay set` - otwórz prywatny formularz\n" +

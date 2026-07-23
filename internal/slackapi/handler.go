@@ -24,6 +24,7 @@ const (
 	replyTimeout             = 5 * time.Second
 	mentionEmoji             = "sergeant"
 	unrecognizedCommandEmoji = "sergeant-no"
+	successEmoji             = "white_check_mark"
 )
 
 type Responder interface {
@@ -163,15 +164,19 @@ func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
 	ctx, cancel := context.WithTimeout(context.Background(), replyTimeout)
 	defer cancel()
 
-	acknowledge := func() bool {
-		if msg.source != "app_mention" {
-			return false
+	addReaction := func(emoji, logMessage string) {
+		if err := h.Responder.AddReaction(ctx, msg.channel, msg.ts, emoji); err != nil {
+			h.Logger.Warn(logMessage, "err", err)
 		}
-		if err := h.Responder.AddReaction(ctx, msg.channel, msg.ts, mentionEmoji); err != nil {
-			h.Logger.Warn("add reaction", "err", err)
-			return false
+	}
+	acknowledge := func(force bool) {
+		if force || msg.source == "app_mention" {
+			addReaction(mentionEmoji, "add reaction")
 		}
-		return true
+	}
+	markSuccess := func(forceAcknowledgement bool) {
+		acknowledge(forceAcknowledgement)
+		addReaction(successEmoji, "add success reaction")
 	}
 
 	stripped := stripBotMention(msg.text, h.BotUserID)
@@ -184,10 +189,8 @@ func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
 	cmd, err := parser.Parse(stripped)
 	if err != nil {
 		h.Logger.Info("unrecognized command", "text", stripped)
-		acknowledge()
-		if err := h.Responder.AddReaction(ctx, msg.channel, msg.ts, unrecognizedCommandEmoji); err != nil {
-			h.Logger.Warn("add reaction", "err", err)
-		}
+		acknowledge(false)
+		addReaction(unrecognizedCommandEmoji, "add reaction")
 		h.send(ctx, Reply{channel: msg.channel, user: msg.user, text: h.Translator.T(i18n.HandlerUsage), ephemeral: true})
 		return
 	}
@@ -195,29 +198,35 @@ func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
 	debtMutation := cmd.Kind == parser.KindAdd || cmd.Kind == parser.KindReset
 
 	if cmd.Kind == parser.KindHelp {
-		acknowledge()
-		h.send(ctx, Reply{channel: msg.channel, user: msg.user, text: h.Translator.T(i18n.HandlerUsage), ephemeral: true})
+		acknowledge(false)
+		if h.send(ctx, Reply{channel: msg.channel, user: msg.user, text: h.Translator.T(i18n.HandlerUsage), ephemeral: true}) {
+			addReaction(successEmoji, "add success reaction")
+		}
 		return
 	}
 
 	if cmd.Kind == parser.KindHello {
-		acknowledge()
+		acknowledge(false)
 		threadTs := msg.threadTs
 		if threadTs == "" {
 			threadTs = msg.ts
 		}
-		h.send(ctx, Reply{channel: msg.channel, user: msg.user, threadTs: threadTs, text: h.Translator.T(i18n.HandlerUsage)})
+		if h.send(ctx, Reply{channel: msg.channel, user: msg.user, threadTs: threadTs, text: h.Translator.T(i18n.HandlerUsage)}) {
+			addReaction(successEmoji, "add success reaction")
+		}
 		return
 	}
 
 	if cmd.Kind == parser.KindPaySetForm {
-		acknowledge()
+		acknowledge(false)
 		if err := h.Responder.PostEphemeralBlocks(
 			ctx, msg.channel, msg.user,
 			h.Translator.T(i18n.PayOpenerText),
 			payOpenerBlocks(h.Translator),
 		); err != nil {
 			h.Logger.Error("post pay opener", "err", err)
+		} else {
+			addReaction(successEmoji, "add success reaction")
 		}
 		return
 	}
@@ -236,24 +245,24 @@ func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
 	}
 
 	if debtMutation {
-		if err := h.Responder.AddReaction(ctx, msg.channel, msg.ts, mentionEmoji); err != nil {
-			h.Logger.Warn("add debt mutation reaction", "err", err)
-		}
+		markSuccess(true)
 		return
 	}
-	acknowledge()
 
+	acknowledge(false)
 	threadTs := msg.threadTs
 	if threadTs == "" {
 		threadTs = msg.ts
 	}
-	h.send(ctx, Reply{
+	if h.send(ctx, Reply{
 		channel:   msg.channel,
 		user:      msg.user,
 		threadTs:  threadTs,
 		text:      r.Text,
 		ephemeral: r.Ephemeral,
-	})
+	}) {
+		addReaction(successEmoji, "add success reaction")
+	}
 }
 
 type Reply struct {
@@ -261,7 +270,7 @@ type Reply struct {
 	ephemeral                     bool
 }
 
-func (h *Handler) send(ctx context.Context, r Reply) {
+func (h *Handler) send(ctx context.Context, r Reply) bool {
 	text := ":cop: " + r.text
 	var err error
 	if r.ephemeral {
@@ -271,7 +280,9 @@ func (h *Handler) send(ctx context.Context, r Reply) {
 	}
 	if err != nil {
 		h.Logger.Error("post reply", "err", err)
+		return false
 	}
+	return true
 }
 
 func (h *Handler) safely(label string, fn func()) {
