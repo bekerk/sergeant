@@ -20,6 +20,10 @@ const (
 	LedgerStatusAllOweHeader  = "ledger.status_all_owe_header"  //
 	LedgerStatusAllLine       = "ledger.status_all_line"        // args: target, joined amounts
 
+	LedgerSummaryOwedHeader = "ledger.summary_owed_header" // Who owes you money:
+	LedgerSummaryPayHeader  = "ledger.summary_pay_header"  // Pay here:
+	LedgerSummaryEmpty      = "ledger.summary_empty"       // Nobody owes you anything.
+
 	PaySaved          = "pay.saved"           // args: method
 	PayRemoved        = "pay.removed"         // args: method
 	PayCleared        = "pay.cleared"         //
@@ -65,6 +69,10 @@ var bundles = map[string]map[string]string{
 		LedgerStatusAllOwedHeader: "Owed to you:",
 		LedgerStatusAllOweHeader:  "You owe:",
 		LedgerStatusAllLine:       "\n- <@%s> - %s",
+
+		LedgerSummaryOwedHeader: "Summary",
+		LedgerSummaryPayHeader:  ":money_with_wings:",
+		LedgerSummaryEmpty:      "Nobody owes you anything.",
 
 		PaySaved:          "Saved your `%s`.",
 		PayRemoved:        "Removed your `%s`.",
@@ -124,6 +132,10 @@ var bundles = map[string]map[string]string{
 		LedgerStatusAllOwedHeader: "Mają u Ciebie dług:",
 		LedgerStatusAllOweHeader:  "Masz dług u:",
 		LedgerStatusAllLine:       "\n- <@%s> - %s",
+
+		LedgerSummaryOwedHeader: "Podsumowanie",
+		LedgerSummaryPayHeader:  ":money_with_wings:",
+		LedgerSummaryEmpty:      "Nikt nie ma u ciebie długu.",
 
 		PaySaved:          "Zapisano `%s`.",
 		PayRemoved:        "Usunięto `%s`.",

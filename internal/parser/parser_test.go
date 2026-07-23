@@ -49,6 +49,9 @@ func TestParse(t *testing.T) {
 		{in: "help", want: Command{Kind: KindHelp}},
 		{in: "  HELP  ", want: Command{Kind: KindHelp}},
 
+		{in: "summary", want: Command{Kind: KindSummary}},
+		{in: "  SUMMARY  ", want: Command{Kind: KindSummary}},
+
 		{in: "hello", want: Command{Kind: KindHello}},
 		{in: "  HELLO  ", want: Command{Kind: KindHello}},
 
