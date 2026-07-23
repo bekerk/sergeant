@@ -334,21 +334,30 @@ func TestAppMentionDebtMutationDoesNotReplyWhenReactionFails(t *testing.T) {
 	}
 }
 
-func TestAppMentionFailedDebtMutationDoesNotAcknowledgeSuccess(t *testing.T) {
-	h, sp, _ := newHandler(t)
-
-	h.dispatch(parseCallbackEvent(t, appMention("<@USERGEANT> <@UAAA> +20 PLN")))
-
-	sp.mu.Lock()
-	defer sp.mu.Unlock()
-	if len(sp.reactions) != 0 {
-		t.Fatalf("failed mutation should not receive a success reaction, got %v", sp.reactions)
+func TestFailedDebtMutationUsesErrorReactionOnly(t *testing.T) {
+	tests := []struct {
+		name  string
+		event []byte
+	}{
+		{name: "channel", event: appMention("<@USERGEANT> <@UAAA> +20 PLN")},
+		{name: "direct message", event: directMessage("<@UAAA> +20 PLN")},
 	}
-	if len(sp.calls) != 1 || !sp.calls[0].ephemeral {
-		t.Fatalf("calls = %v, want one ephemeral error", sp.calls)
-	}
-	if want := ":cop: You can't owe yourself."; sp.calls[0].text != want {
-		t.Fatalf("error text = %q, want %q", sp.calls[0].text, want)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			h, sp, _ := newHandler(t)
+
+			h.dispatch(parseCallbackEvent(t, tc.event))
+
+			sp.mu.Lock()
+			defer sp.mu.Unlock()
+			if len(sp.reactions) != 1 || sp.reactions[0].name != unrecognizedCommandEmoji {
+				t.Fatalf("reactions = %v, want one %q reaction", sp.reactions, unrecognizedCommandEmoji)
+			}
+			if len(sp.calls) != 0 {
+				t.Fatalf("failed debt mutation should not post a message, got %v", sp.calls)
+			}
+		})
 	}
 }
 

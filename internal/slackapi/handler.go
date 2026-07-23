@@ -3,7 +3,6 @@ package slackapi
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -193,6 +192,7 @@ func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
 		return
 	}
 	h.Logger.Info("dispatch", "kind", cmd.Kind, "target", cmd.Target)
+	debtMutation := cmd.Kind == parser.KindAdd || cmd.Kind == parser.KindReset
 
 	if cmd.Kind == parser.KindHelp {
 		acknowledge()
@@ -224,17 +224,18 @@ func (h *Handler) dispatch(event slackevents.EventsAPIEvent) {
 
 	r, err := h.Ledger.Apply(ctx, msg.user, cmd)
 	if err != nil {
-		text := h.Translator.T(i18n.HandlerError)
-		if errors.Is(err, ledger.ErrSelfTarget) {
-			text = h.Translator.T(i18n.HandlerSelfTarget)
-		} else {
-			h.Logger.Error("ledger apply", "err", err)
+		if debtMutation {
+			if err := h.Responder.AddReaction(ctx, msg.channel, msg.ts, unrecognizedCommandEmoji); err != nil {
+				h.Logger.Warn("add failed debt mutation reaction", "err", err)
+			}
+			return
 		}
-		h.send(ctx, Reply{channel: msg.channel, user: msg.user, text: text, ephemeral: true})
+		h.Logger.Error("ledger apply", "err", err)
+		h.send(ctx, Reply{channel: msg.channel, user: msg.user, text: h.Translator.T(i18n.HandlerError), ephemeral: true})
 		return
 	}
 
-	if cmd.Kind == parser.KindAdd || cmd.Kind == parser.KindReset {
+	if debtMutation {
 		if err := h.Responder.AddReaction(ctx, msg.channel, msg.ts, mentionEmoji); err != nil {
 			h.Logger.Warn("add debt mutation reaction", "err", err)
 		}

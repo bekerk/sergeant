@@ -28,7 +28,7 @@ Request flow for a mention or DM:
 
 1. `slackapi.Handler.dispatch` extracts text from either `AppMentionEvent` or `MessageEvent` (DMs only — `ChannelType == "im"`, no bots, no edits, not our own user). The leading `<@BOT>` mention is stripped.
 2. `parser.Parse` turns the text into a `parser.Command` (one of `KindAdd`, `KindReset`, `KindStatusFor`, `KindStatusAll`, `KindPaySet`, `KindPaySetForm`, `KindPayRemove`, `KindPayClear`, `KindPayShowSelf`, `KindPayShowFor`, `KindHelp`).
-3. `ledger.Ledger.Apply` executes the command against `store.SQLite` and returns a `ledger.Reply{Text, Ephemeral}`. Successful add/subtract/reset commands stop after attempting a `:sergeant:` reaction, including in DMs; they never post a text confirmation. Other replies are posted through the `Responder` interface according to `ledger.Reply`.
+3. `ledger.Ledger.Apply` executes the command against `store.SQLite` and returns a `ledger.Reply{Text, Ephemeral}`. Add/subtract/reset commands use reactions only, including in DMs: `:sergeant:` after success and `:sergeant-no:` after failure, with no text response. Other replies are posted through the `Responder` interface according to `ledger.Reply`.
 
 `KindPaySetForm` is the one branch that bypasses the ledger: the handler posts an ephemeral opener with a button, the button triggers `slackapi.InteractionTypeBlockActions` → `OpenView` (modal), and modal submission goes through `handlePayFormSubmission`, which must respond synchronously (empty 200 closes the modal, JSON `errors` reopens it with field-level errors, `update` swaps to a confirmation view).
 
